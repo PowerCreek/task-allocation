@@ -3,9 +3,6 @@ import { Field, Form, Formik } from "formik";
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import {
-  ALLOCATION_MODES,
-  FIELD_KEYS,
-  USER_ACTIONS,
   adjustValue,
   applyGlobalAddLogic, // used for N per User mode only
   calcEffectivePool,
@@ -14,28 +11,59 @@ import {
   disableSelect,
 } from "./TaskAllocationHelpers";
 
+// Inlined constants object
+const CONSTANTS = {
+  FIELD_KEYS: {
+    TO_ASSIGN: "toAssign",
+    ACTION: "action",
+    ALLOCATION_MODE: "allocationMode",
+    GLOBAL_ADD_MODE: "globalAddMode",
+    QUALIFIER: "qualifier",
+    QUALIFIER_LOCKED: "qualifierLocked",
+  },
+  ALLOCATION_MODES: {
+    NORMAL: "normal",
+    DISTRIBUTED: "distributed",
+  },
+  USER_ACTIONS: {
+    ADD: "add",
+    SUBTRACT: "subtract",
+    EXCLUDE: "exclude",
+  },
+  CONSOLIDATED_MODES: {
+    DISTRIBUTED_EVEN: "evenly",
+    DISTRIBUTED_N: "perUser",
+  },
+};
+
 // Add new keys for qualifier fields.
-FIELD_KEYS.QUALIFIER = "qualifier";
-FIELD_KEYS.QUALIFIER_LOCKED = "qualifierLocked";
+CONSTANTS.FIELD_KEYS.QUALIFIER = "qualifier";
+CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED = "qualifierLocked";
 
 // Consolidated modes constant.
-const CONSOLIDATED_MODES = {
-  DISTRIBUTED_EVEN: "evenly",
-  DISTRIBUTED_N: "perUser",
-};
+const CONSOLIDATED_MODES = CONSTANTS.CONSOLIDATED_MODES;
 
 /* ---------------- Helper Modules ---------------- */
 
 const CumulativePercent = {
   recalc: (values, setFieldValue) => {
-    const lockedArr = values[FIELD_KEYS.QUALIFIER_LOCKED];
-    const totalExplicit = values[FIELD_KEYS.QUALIFIER].reduce((sum, q, i) => {
-      if (values[FIELD_KEYS.ACTION][i] === USER_ACTIONS.EXCLUDE) return sum;
-      return sum + (lockedArr[i] ? Number(q) : 0);
-    }, 0);
+    const lockedArr = values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED];
+    const totalExplicit = values[CONSTANTS.FIELD_KEYS.QUALIFIER].reduce(
+      (sum, q, i) => {
+        if (
+          values[CONSTANTS.FIELD_KEYS.ACTION][i] ===
+          CONSTANTS.USER_ACTIONS.EXCLUDE
+        )
+          return sum;
+        return sum + (lockedArr[i] ? Number(q) : 0);
+      },
+      0
+    );
     const unlockedIndices = lockedArr
       .map((locked, i) =>
-        !locked && values[FIELD_KEYS.ACTION][i] !== USER_ACTIONS.EXCLUDE
+        !locked &&
+        values[CONSTANTS.FIELD_KEYS.ACTION][i] !==
+          CONSTANTS.USER_ACTIONS.EXCLUDE
           ? i
           : null
       )
@@ -48,16 +76,27 @@ const CumulativePercent = {
     if (extraCount < unlockedIndices.length) extraCount = 0;
     unlockedIndices.forEach((i, idx) => {
       const newValue = baseValue + (idx < extraCount ? 1 : 0);
-      setFieldValue(`${FIELD_KEYS.QUALIFIER}[${i}]`, newValue);
+      setFieldValue(`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${i}]`, newValue);
     });
   },
   clampValue: (values, idx, candidate) => {
-    if (values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.EXCLUDE) return 0;
-    const otherExplicitSum = values[FIELD_KEYS.QUALIFIER].reduce(
+    if (
+      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+      CONSTANTS.USER_ACTIONS.EXCLUDE
+    )
+      return 0;
+    const otherExplicitSum = values[CONSTANTS.FIELD_KEYS.QUALIFIER].reduce(
       (sum, q, i) => {
         if (i === idx) return sum;
-        if (values[FIELD_KEYS.ACTION][i] === USER_ACTIONS.EXCLUDE) return sum;
-        return sum + (values[FIELD_KEYS.QUALIFIER_LOCKED][i] ? Number(q) : 0);
+        if (
+          values[CONSTANTS.FIELD_KEYS.ACTION][i] ===
+          CONSTANTS.USER_ACTIONS.EXCLUDE
+        )
+          return sum;
+        return (
+          sum +
+          (values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][i] ? Number(q) : 0)
+        );
       },
       0
     );
@@ -72,19 +111,19 @@ const recalcNPerUser = (
   baseAssignable,
   perUserChunk
 ) => {
-  const nonExcludedIndices = values[FIELD_KEYS.ACTION]
-    .map((act, i) => (act === USER_ACTIONS.ADD ? i : null))
+  const nonExcludedIndices = values[CONSTANTS.FIELD_KEYS.ACTION]
+    .map((act, i) => (act === CONSTANTS.USER_ACTIONS.ADD ? i : null))
     .filter((i) => i !== null);
   const count = nonExcludedIndices.length;
   if (count === 0) {
     setFieldValue(
-      FIELD_KEYS.TO_ASSIGN,
-      values[FIELD_KEYS.TO_ASSIGN].map(() => 0)
+      CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+      values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].map(() => 0)
     );
     return;
   }
   let remainingPool = baseAssignable;
-  const newAllocations = values[FIELD_KEYS.TO_ASSIGN].map(() => 0);
+  const newAllocations = values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].map(() => 0);
   for (let i = 0; i < nonExcludedIndices.length; i++) {
     const idx = nonExcludedIndices[i];
     if (remainingPool <= 0) {
@@ -97,26 +136,30 @@ const recalcNPerUser = (
       remainingPool = 0;
     }
   }
-  setFieldValue(FIELD_KEYS.TO_ASSIGN, newAllocations);
+  setFieldValue(CONSTANTS.FIELD_KEYS.TO_ASSIGN, newAllocations);
 };
 
-const applyDistributedEvenLogic = (values) => {
-  const globalChunk = Number(values.globalChunk) || 0;
-  if (!globalChunk) return values[FIELD_KEYS.TO_ASSIGN];
+const applyDistributedEvenLogic = (values, pool) => {
+  const globalChunk = Number(pool) || 0;
+  if (!globalChunk) return values[CONSTANTS.FIELD_KEYS.TO_ASSIGN];
 
-  const eligibleIndices = values[FIELD_KEYS.ACTION]
-    .map((act, idx) => (act === USER_ACTIONS.ADD ? idx : null))
+  const eligibleIndices = values[CONSTANTS.FIELD_KEYS.ACTION]
+    .map((act, idx) => (act === CONSTANTS.USER_ACTIONS.ADD ? idx : null))
     .filter((idx) => idx !== null);
-  if (eligibleIndices.length === 0) return values[FIELD_KEYS.TO_ASSIGN];
+  if (eligibleIndices.length === 0)
+    return values[CONSTANTS.FIELD_KEYS.TO_ASSIGN];
 
-  let newAllocations = new Array(values[FIELD_KEYS.TO_ASSIGN].length).fill(0);
+  let newAllocations = new Array(
+    values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].length
+  ).fill(0);
   let totalExplicitPercent = 0;
   let explicitIndices = [],
     implicitIndices = [];
   eligibleIndices.forEach((idx) => {
-    const qualifier = Number(values[FIELD_KEYS.QUALIFIER][idx]);
-    if (values[FIELD_KEYS.QUALIFIER_LOCKED][idx] && qualifier <= 0) return;
-    if (values[FIELD_KEYS.QUALIFIER_LOCKED][idx]) {
+    const qualifier = Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]);
+    if (values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx] && qualifier <= 0)
+      return;
+    if (values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]) {
       explicitIndices.push(idx);
       totalExplicitPercent += qualifier;
     } else {
@@ -134,7 +177,7 @@ const applyDistributedEvenLogic = (values) => {
   let remainingChunk = globalChunk - minImplicitAllocation;
   let totalAllocated = 0;
   explicitIndices.forEach((idx) => {
-    let percent = Number(values[FIELD_KEYS.QUALIFIER][idx]) / 100;
+    let percent = Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) / 100;
     newAllocations[idx] = Math.floor(percent * remainingChunk);
     totalAllocated += newAllocations[idx];
   });
@@ -152,7 +195,7 @@ const applyDistributedEvenLogic = (values) => {
   }
   explicitIndices.forEach((idx) => {
     if (
-      Number(values[FIELD_KEYS.QUALIFIER][idx]) > 0 &&
+      Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) > 0 &&
       newAllocations[idx] === 0
     ) {
       newAllocations[idx] = 1;
@@ -162,7 +205,7 @@ const applyDistributedEvenLogic = (values) => {
     (sum, idx) => sum + newAllocations[idx],
     0
   );
-  const remainingPool = Math.max(0, Number(values.globalChunk) - explicitTotal);
+  const remainingPool = Math.max(0, Number(pool) - explicitTotal);
   if (implicitIndices.length) {
     const baseImplicit = Math.floor(remainingPool / implicitIndices.length);
     const extraImplicit = remainingPool % implicitIndices.length;
@@ -225,22 +268,32 @@ const NormalAllocationForm = ({
       </thead>
       <tbody>
         {users.map((user, idx) => {
-          const currentVal = Number(values[FIELD_KEYS.TO_ASSIGN][idx] || 0);
+          const currentVal = Number(
+            values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
+          );
           let remaining = 0;
-          if (values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD) {
+          if (
+            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+            CONSTANTS.USER_ACTIONS.ADD
+          ) {
             const poolForAddition = baseAssignable;
             const addMax = Math.max(
               0,
               poolForAddition - (totals.totalAdded - currentVal)
             );
             remaining = Math.max(0, addMax - currentVal);
-          } else if (values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT) {
+          } else if (
+            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+            CONSTANTS.USER_ACTIONS.SUBTRACT
+          ) {
             remaining = user.tasks - currentVal;
           }
           const pendingTotal =
-            values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD
+            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+            CONSTANTS.USER_ACTIONS.ADD
               ? user.tasks + currentVal
-              : values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT
+              : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.SUBTRACT
               ? Math.max(0, user.tasks - currentVal)
               : user.tasks;
           return (
@@ -250,13 +303,19 @@ const NormalAllocationForm = ({
               <td className="td">
                 <Field
                   as="select"
-                  name={`${FIELD_KEYS.ACTION}[${idx}]`}
-                  value={values[FIELD_KEYS.ACTION][idx]}
+                  name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                  value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                   onChange={(e) => {
                     const newValue = e.target.value;
-                    setFieldValue(`${FIELD_KEYS.ACTION}[${idx}]`, newValue);
-                    if (newValue === USER_ACTIONS.EXCLUDE) {
-                      setFieldValue(`${FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
+                    setFieldValue(
+                      `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                      newValue
+                    );
+                    if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                        0
+                      );
                     }
                   }}
                   disabled={disableSelect(
@@ -268,13 +327,15 @@ const NormalAllocationForm = ({
                   )}
                   style={{ width: "100px", padding: "5px" }}
                 >
-                  <option value={USER_ACTIONS.ADD}>Add</option>
-                  <option value={USER_ACTIONS.SUBTRACT}>Reassign</option>
+                  <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                  <option value={CONSTANTS.USER_ACTIONS.SUBTRACT}>
+                    Reassign
+                  </option>
                 </Field>
               </td>
               <td className="td">
                 <Field
-                  name={`${FIELD_KEYS.TO_ASSIGN}[${idx}]`}
+                  name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
                   component={ControlledToAssignInput}
                   index={idx}
                   onValidatedChange={handleFieldChange}
@@ -287,8 +348,9 @@ const NormalAllocationForm = ({
                   type="button"
                   onClick={() =>
                     setFieldValue(
-                      `${FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                      Number(values[FIELD_KEYS.TO_ASSIGN][idx] || 0) + remaining
+                      `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                      Number(values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0) +
+                        remaining
                     )
                   }
                   className="button"
@@ -319,27 +381,28 @@ const DistributedEvenForm = ({
   handleFieldChange,
 }) => {
   const { values, setFieldValue } = formikProps;
-  const [globalPool, setGlobalPool] = useState(0);
+  // We no longer rely on a separate state for globalPool,
+  // instead we pass the current values.globalChunk to our update logic.
 
   // consolidateValues uses the provided pool value to calculate distribution.
   const consolidateValues = (vals, pool) => {
-    const actions = vals[FIELD_KEYS.ACTION];
-    const origQuals = vals[FIELD_KEYS.QUALIFIER];
-    const origLocks = vals[FIELD_KEYS.QUALIFIER_LOCKED];
+    const actions = vals[CONSTANTS.FIELD_KEYS.ACTION];
+    const origQuals = vals[CONSTANTS.FIELD_KEYS.QUALIFIER];
+    const origLocks = vals[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED];
 
     // 1. Apply EXCLUDE logic
     const forcedQuals = origQuals.map((q, i) =>
-      actions[i] === USER_ACTIONS.EXCLUDE ? 0 : q
+      actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
     );
     const forcedLocks = origLocks.map((l, i) =>
-      actions[i] === USER_ACTIONS.EXCLUDE ? true : l
+      actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? true : l
     );
 
     // 2. Partition into explicit (override) and implicit (dynamic) groups
     let explicit = [],
       implicit = [];
     forcedQuals.forEach((q, i) => {
-      if (actions[i] !== USER_ACTIONS.EXCLUDE) {
+      if (actions[i] !== CONSTANTS.USER_ACTIONS.EXCLUDE) {
         if (forcedLocks[i] && q > 0) {
           explicit.push(i); // Only include locked workers with a percent > 0
         } else if (!forcedLocks[i]) {
@@ -434,43 +497,44 @@ const DistributedEvenForm = ({
           remainingPool--;
         }
       });
-      console.log("remainingPool", remainingPool);
       if (remainingPool > 0) {
         explicit.forEach((i) => {
           if (remainingPool > 0) {
             finalDist[i]++;
             remainingPool--;
           }
-          return;
         });
       }
     }
 
-    return { ...vals, [FIELD_KEYS.TO_ASSIGN]: finalDist };
+    return { ...vals, [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: finalDist };
   };
 
-  // updateDistribution uses the current globalPool value.
-  const updateDistribution = (updatedValues) => {
-    const consolidated = consolidateValues(updatedValues, globalPool);
-    setFieldValue(FIELD_KEYS.TO_ASSIGN, consolidated[FIELD_KEYS.TO_ASSIGN]);
+  // updateDistribution now accepts a pool value.
+  const updateDistribution = (updatedValues, pool) => {
+    const consolidated = consolidateValues(updatedValues, pool);
+    setFieldValue(
+      CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+      consolidated[CONSTANTS.FIELD_KEYS.TO_ASSIGN]
+    );
   };
 
   // The qualifier onChange handler clamps input and updates distribution if a pool is applied.
   const handleQualifierChange = (e, idx) => {
     const newCandidate = Number(e.target.value) || 0;
     const clamped = CumulativePercent.clampValue(values, idx, newCandidate);
-    setFieldValue(`${FIELD_KEYS.QUALIFIER}[${idx}]`, clamped);
-    setFieldValue(`${FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`, true);
-    const updatedQualifiers = values[FIELD_KEYS.QUALIFIER].map((q, i) =>
-      i === idx ? clamped : q
+    setFieldValue(`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`, clamped);
+    setFieldValue(`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`, true);
+    const updatedQualifiers = values[CONSTANTS.FIELD_KEYS.QUALIFIER].map(
+      (q, i) => (i === idx ? clamped : q)
     );
     const updatedValues = {
       ...values,
-      [FIELD_KEYS.QUALIFIER]: updatedQualifiers,
+      [CONSTANTS.FIELD_KEYS.QUALIFIER]: updatedQualifiers,
     };
     CumulativePercent.recalc(updatedValues, setFieldValue);
-    if (globalPool > 0) {
-      updateDistribution(updatedValues);
+    if (Number(values.globalChunk) > 0) {
+      updateDistribution(updatedValues, Number(values.globalChunk));
     }
   };
 
@@ -491,9 +555,9 @@ const DistributedEvenForm = ({
   const reacalculateAllValues = () => {
     const updatedValues = {
       ...values,
-      [FIELD_KEYS.QUALIFIER_LOCKED]: values[FIELD_KEYS.QUALIFIER_LOCKED].map(
-        () => false
-      ),
+      [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+        CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+      ].map(() => false),
     };
     CumulativePercent.recalc(updatedValues, setFieldValue);
   };
@@ -507,8 +571,7 @@ const DistributedEvenForm = ({
   // The Apply Global Add button saves the current globalChunk value as the applied pool and updates distribution.
   const updateConsolidatedValues = () => {
     const newPool = Number(values.globalChunk);
-    setGlobalPool(newPool);
-    updateDistribution(values);
+    updateDistribution(values, newPool);
   };
 
   const totals = calcTotals(values);
@@ -553,41 +616,55 @@ const DistributedEvenForm = ({
         </thead>
         <tbody>
           {users.map((user, idx) => {
-            const currentVal = Number(values[FIELD_KEYS.TO_ASSIGN][idx] || 0);
+            const currentVal = Number(
+              values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
+            );
             let remaining = 0;
-            if (values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD) {
-              const poolForAddition = globalPool;
+            if (
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
+            ) {
+              const poolForAddition = Number(values.globalChunk);
               const addMax = Math.max(
                 0,
                 poolForAddition - (totals.totalAdded - currentVal)
               );
               remaining = Math.max(0, addMax - currentVal);
             } else if (
-              values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.SUBTRACT
             ) {
               remaining = user.tasks - currentVal;
             }
             const pendingTotal =
-              values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
                 ? user.tasks + currentVal
-                : values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT
+                : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                  CONSTANTS.USER_ACTIONS.SUBTRACT
                 ? Math.max(0, user.tasks - currentVal)
                 : user.tasks;
 
             const qualifierValue =
-              Number(values[FIELD_KEYS.QUALIFIER][idx]) || 0;
-            const totalExplicitSum = values[FIELD_KEYS.QUALIFIER].reduce(
+              Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) || 0;
+            const totalExplicitSum = values[
+              CONSTANTS.FIELD_KEYS.QUALIFIER
+            ].reduce(
               (sum, q, i) =>
-                values[FIELD_KEYS.ACTION][i] !== USER_ACTIONS.EXCLUDE &&
-                values[FIELD_KEYS.QUALIFIER_LOCKED][i]
+                values[CONSTANTS.FIELD_KEYS.ACTION][i] !==
+                  CONSTANTS.USER_ACTIONS.EXCLUDE &&
+                values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][i]
                   ? sum + Number(q)
                   : sum,
               0
             );
             const remPercentVal = Math.max(0, 100 - totalExplicitSum);
-            const computedValue = values[FIELD_KEYS.QUALIFIER_LOCKED][idx]
+            const computedValue = values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
+              idx
+            ]
               ? qualifierValue
-              : values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.EXCLUDE
+              : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.EXCLUDE
               ? 0
               : qualifierValue < 1 && remPercentVal > 0
               ? ""
@@ -599,21 +676,30 @@ const DistributedEvenForm = ({
                 <td className="td">
                   <Field
                     as="select"
-                    name={`${FIELD_KEYS.ACTION}[${idx}]`}
-                    value={values[FIELD_KEYS.ACTION][idx]}
+                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                    value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                     onChange={(e) => {
                       const newValue = e.target.value;
-                      setFieldValue(`${FIELD_KEYS.ACTION}[${idx}]`, newValue);
-                      if (newValue === USER_ACTIONS.EXCLUDE) {
-                        setFieldValue(`${FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
-                        setFieldValue(`${FIELD_KEYS.QUALIFIER}[${idx}]`, 0);
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                        newValue
+                      );
+                      if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
                         setFieldValue(
-                          `${FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                          0
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
+                          0
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
                           true
                         );
                       }
-                      if (globalPool > 0) {
-                        updateDistribution(values);
+                      if (Number(values.globalChunk) > 0) {
+                        updateDistribution(values, Number(values.globalChunk));
                       }
                     }}
                     disabled={disableSelect(
@@ -625,8 +711,10 @@ const DistributedEvenForm = ({
                     )}
                     style={{ width: "100px", padding: "5px" }}
                   >
-                    <option value={USER_ACTIONS.ADD}>Add</option>
-                    <option value={USER_ACTIONS.EXCLUDE}>Exclude</option>
+                    <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                    <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
+                      Exclude
+                    </option>
                   </Field>
                 </td>
                 <td className="td">
@@ -638,20 +726,16 @@ const DistributedEvenForm = ({
                     }}
                   >
                     <Field
-                      name={`${FIELD_KEYS.QUALIFIER}[${idx}]`}
+                      name={`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`}
                       type="number"
                       onChange={(e) => handleQualifierChange(e, idx)}
-                      // If locked, show the computed value; if unlocked, show an empty value so that
-                      // only the placeholder (showing the dynamic amount) appears.
                       value={
-                        values[FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                        values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
                           ? computedValue
                           : ""
                       }
-                      // When unlocked, the placeholder shows the dynamic amount;
-                      // also preserve the "<1%" logic.
                       placeholder={
-                        !values[FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                        !values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
                           ? qualifierValue < 1 && remPercentVal > 0
                             ? "<1%"
                             : computedValue
@@ -659,43 +743,46 @@ const DistributedEvenForm = ({
                       }
                       style={{ width: "60px", padding: "5px" }}
                       readOnly={
-                        values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.EXCLUDE
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                        CONSTANTS.USER_ACTIONS.EXCLUDE
                       }
                     />
                     <Field
-                      name={`${FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
+                      name={`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
                       type="checkbox"
                       onChange={(e) => {
                         const newLocked = e.target.checked;
-                        // Update the locked flag immediately.
                         setFieldValue(
-                          `${FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
                           newLocked
                         );
-                        // Build an updated values object reflecting the new locked state.
                         const updatedValues = {
                           ...values,
-                          [FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                            FIELD_KEYS.QUALIFIER_LOCKED
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
                           ].map((val, i) => (i === idx ? newLocked : val)),
-                          [FIELD_KEYS.QUALIFIER]: values[
-                            FIELD_KEYS.QUALIFIER
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER
                           ].map((q, i) =>
                             i === idx ? (newLocked ? computedValue : 0) : q
                           ),
                         };
                         CumulativePercent.recalc(updatedValues, setFieldValue);
-                        updateDistribution(updatedValues);
-                        // Recalculate distribution with the updated values.
+                        updateDistribution(
+                          updatedValues,
+                          Number(values.globalChunk)
+                        );
                       }}
-                      checked={values[FIELD_KEYS.QUALIFIER_LOCKED][idx]}
+                      checked={
+                        values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                      }
                     />
                   </div>
                 </td>
 
                 <td className="td">
                   <Field
-                    name={`${FIELD_KEYS.TO_ASSIGN}[${idx}]`}
+                    name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
                     component={ControlledToAssignInput}
                     index={idx}
                     onValidatedChange={handleFieldChange}
@@ -736,7 +823,7 @@ const NPerUserForm = ({
           type="button"
           onClick={() =>
             setFieldValue(
-              FIELD_KEYS.TO_ASSIGN,
+              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
               applyGlobalAddLogic(values, baseAssignable)
             )
           }
@@ -758,9 +845,14 @@ const NPerUserForm = ({
         </thead>
         <tbody>
           {users.map((user, idx) => {
-            const currentVal = Number(values[FIELD_KEYS.TO_ASSIGN][idx] || 0);
+            const currentVal = Number(
+              values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
+            );
             let remaining = 0;
-            if (values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD) {
+            if (
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
+            ) {
               const poolForAddition = baseAssignable;
               const addMax = Math.max(
                 0,
@@ -768,14 +860,17 @@ const NPerUserForm = ({
               );
               remaining = Math.max(0, addMax - currentVal);
             } else if (
-              values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.SUBTRACT
             ) {
               remaining = user.tasks - currentVal;
             }
             const pendingTotal =
-              values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.ADD
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
                 ? user.tasks + currentVal
-                : values[FIELD_KEYS.ACTION][idx] === USER_ACTIONS.SUBTRACT
+                : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                  CONSTANTS.USER_ACTIONS.SUBTRACT
                 ? Math.max(0, user.tasks - currentVal)
                 : user.tasks;
             return (
@@ -785,31 +880,37 @@ const NPerUserForm = ({
                 <td className="td">
                   <Field
                     as="select"
-                    name={`${FIELD_KEYS.ACTION}[${idx}]`}
-                    value={values[FIELD_KEYS.ACTION][idx]}
+                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                    value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                     onChange={(e) => {
                       const newValue = e.target.value;
-                      setFieldValue(`${FIELD_KEYS.ACTION}[${idx}]`, newValue);
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                        newValue
+                      );
                       const updatedValues = {
                         ...values,
-                        [FIELD_KEYS.ACTION]: values[FIELD_KEYS.ACTION].map(
-                          (act, i) => (i === idx ? newValue : act)
-                        ),
+                        [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                          CONSTANTS.FIELD_KEYS.ACTION
+                        ].map((act, i) => (i === idx ? newValue : act)),
                       };
-                      if (newValue === USER_ACTIONS.EXCLUDE) {
-                        setFieldValue(`${FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
+                      if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                          0
+                        );
                         recalcNPerUser(
                           updatedValues,
                           setFieldValue,
                           baseAssignable,
                           Number(values.perUserChunk) || 0
                         );
-                      } else if (newValue === USER_ACTIONS.ADD) {
-                        updatedValues[FIELD_KEYS.TO_ASSIGN] =
+                      } else if (newValue === CONSTANTS.USER_ACTIONS.ADD) {
+                        updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN] =
                           applyGlobalAddLogic(updatedValues, baseAssignable);
                         setFieldValue(
-                          FIELD_KEYS.TO_ASSIGN,
-                          updatedValues[FIELD_KEYS.TO_ASSIGN]
+                          CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                          updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN]
                         );
                       }
                     }}
@@ -822,13 +923,15 @@ const NPerUserForm = ({
                     )}
                     style={{ width: "100px", padding: "5px" }}
                   >
-                    <option value={USER_ACTIONS.ADD}>Add</option>
-                    <option value={USER_ACTIONS.EXCLUDE}>Exclude</option>
+                    <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                    <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
+                      Exclude
+                    </option>
                   </Field>
                 </td>
                 <td className="td">
                   <Field
-                    name={`${FIELD_KEYS.TO_ASSIGN}[${idx}]`}
+                    name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
                     component={ControlledToAssignInput}
                     index={idx}
                     onValidatedChange={handleFieldChange}
@@ -874,17 +977,17 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
   const baseAssignable = assignable;
 
   const handleFieldChange = (e, idx, values, setFieldValue) => {
-    const action = values[FIELD_KEYS.ACTION][idx];
+    const action = values[CONSTANTS.FIELD_KEYS.ACTION][idx];
     const { value } = e.target;
     const numericValue = parseFloat(value);
     const newValRaw = isNaN(numericValue) ? 0 : Math.max(0, numericValue);
-    const oldVal = Number(values[FIELD_KEYS.TO_ASSIGN][idx] || 0);
-    const updatedToAssign = [...values[FIELD_KEYS.TO_ASSIGN]];
+    const oldVal = Number(values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0);
+    const updatedToAssign = [...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN]];
     updatedToAssign[idx] = newValRaw;
     const totals = calcTotals(values);
     const newTotals = calcTotals({
-      [FIELD_KEYS.TO_ASSIGN]: updatedToAssign,
-      action: values[FIELD_KEYS.ACTION],
+      [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: updatedToAssign,
+      action: values[CONSTANTS.FIELD_KEYS.ACTION],
     });
     const poolForAddition = baseAssignable;
     const adjusted = adjustValue(
@@ -896,19 +999,21 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
       poolForAddition,
       users[idx].tasks
     );
-    setFieldValue(`${FIELD_KEYS.TO_ASSIGN}[${idx}]`, adjusted);
+    setFieldValue(`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`, adjusted);
   };
 
   const handleSubmit = (values, { setSubmitting, setFieldValue }) => {
     if (
-      values[FIELD_KEYS.ALLOCATION_MODE] === ALLOCATION_MODES.DISTRIBUTED &&
-      values[FIELD_KEYS.GLOBAL_ADD_MODE] === "evenly"
+      values[CONSTANTS.FIELD_KEYS.ALLOCATION_MODE] ===
+        CONSTANTS.ALLOCATION_MODES.DISTRIBUTED &&
+      values[CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE] === "evenly"
     ) {
       CumulativePercent.recalc(values, setFieldValue);
     }
     if (
-      values[FIELD_KEYS.ALLOCATION_MODE] === ALLOCATION_MODES.DISTRIBUTED &&
-      values[FIELD_KEYS.GLOBAL_ADD_MODE] === "perUser"
+      values[CONSTANTS.FIELD_KEYS.ALLOCATION_MODE] ===
+        CONSTANTS.ALLOCATION_MODES.DISTRIBUTED &&
+      values[CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE] === "perUser"
     ) {
       recalcNPerUser(
         values,
@@ -931,8 +1036,8 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
       users: updatedUsers,
     };
     onUpdateInitialStore(newStore);
-    values[FIELD_KEYS.TO_ASSIGN].forEach((_, idx) => {
-      setFieldValue(`${FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
+    values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].forEach((_, idx) => {
+      setFieldValue(`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
     });
     setSubmitting(false);
   };
@@ -942,14 +1047,17 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
       enableReinitialize
       initialValues={{
         combinedMode: "normal",
-        [FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
-        [FIELD_KEYS.ACTION]: users.map(() => USER_ACTIONS.ADD),
-        [FIELD_KEYS.ALLOCATION_MODE]: ALLOCATION_MODES.NORMAL,
-        [FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
+        [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
+        [CONSTANTS.FIELD_KEYS.ACTION]: users.map(
+          () => CONSTANTS.USER_ACTIONS.ADD
+        ),
+        [CONSTANTS.FIELD_KEYS.ALLOCATION_MODE]:
+          CONSTANTS.ALLOCATION_MODES.NORMAL,
+        [CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
         perUserChunk: 0,
         globalChunk: 10,
-        [FIELD_KEYS.QUALIFIER]: users.map(() => 0),
-        [FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
+        [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
+        [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
       }}
       onSubmit={handleSubmit}
     >
@@ -967,11 +1075,16 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     setValues({
                       ...values,
                       combinedMode: "normal",
-                      [FIELD_KEYS.ALLOCATION_MODE]: ALLOCATION_MODES.NORMAL,
-                      [FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
-                      [FIELD_KEYS.ACTION]: users.map(() => USER_ACTIONS.ADD),
-                      [FIELD_KEYS.QUALIFIER]: users.map(() => 0),
-                      [FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
+                      [CONSTANTS.FIELD_KEYS.ALLOCATION_MODE]:
+                        CONSTANTS.ALLOCATION_MODES.NORMAL,
+                      [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.ACTION]: users.map(
+                        () => CONSTANTS.USER_ACTIONS.ADD
+                      ),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(
+                        () => false
+                      ),
                     })
                   }
                   checked={values.combinedMode === "normal"}
@@ -988,13 +1101,17 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     setValues({
                       ...values,
                       combinedMode: "distributedEven",
-                      [FIELD_KEYS.ALLOCATION_MODE]:
-                        ALLOCATION_MODES.DISTRIBUTED,
-                      [FIELD_KEYS.GLOBAL_ADD_MODE]: "evenly",
-                      [FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
-                      [FIELD_KEYS.ACTION]: users.map(() => USER_ACTIONS.ADD),
-                      [FIELD_KEYS.QUALIFIER]: users.map(() => 0),
-                      [FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
+                      [CONSTANTS.FIELD_KEYS.ALLOCATION_MODE]:
+                        CONSTANTS.ALLOCATION_MODES.DISTRIBUTED,
+                      [CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE]: "evenly",
+                      [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.ACTION]: users.map(
+                        () => CONSTANTS.USER_ACTIONS.ADD
+                      ),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(
+                        () => false
+                      ),
                     })
                   }
                   checked={values.combinedMode === "distributedEven"}
@@ -1011,13 +1128,17 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     setValues({
                       ...values,
                       combinedMode: "nPer",
-                      [FIELD_KEYS.ALLOCATION_MODE]:
-                        ALLOCATION_MODES.DISTRIBUTED,
-                      [FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
-                      [FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
-                      [FIELD_KEYS.ACTION]: users.map(() => USER_ACTIONS.ADD),
-                      [FIELD_KEYS.QUALIFIER]: users.map(() => 0),
-                      [FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
+                      [CONSTANTS.FIELD_KEYS.ALLOCATION_MODE]:
+                        CONSTANTS.ALLOCATION_MODES.DISTRIBUTED,
+                      [CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
+                      [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.ACTION]: users.map(
+                        () => CONSTANTS.USER_ACTIONS.ADD
+                      ),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
+                      [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(
+                        () => false
+                      ),
                     })
                   }
                   checked={values.combinedMode === "nPer"}
