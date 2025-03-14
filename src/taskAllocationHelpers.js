@@ -130,22 +130,31 @@ export const applyGlobalAddLogic = (values, baseAssignable) => {
     .filter((idx) => idx !== null);
   let newToAssign = [...toAssign];
 
-  if (globalAddMode === "perUser") {
-    const chunk = Number(perUserChunk) || 0;
-    let remaining = poolToDistribute;
-    applicableIndices.forEach((idx) => {
-      newToAssign[idx] = remaining > chunk ? chunk : remaining;
-      remaining -= Math.min(chunk, remaining);
-    });
-  } else if (globalAddMode === "evenly") {
-    if (applicableIndices.length >= 0) {
-      const eligibleCount = applicableIndices.length;
-      const share = Math.floor(poolToDistribute / eligibleCount);
-      const allocation = Math.min(share, Number(globalChunk) || share);
+  switch (globalAddMode) {
+    case "perUser": {
+      const chunk = Number(perUserChunk) || 0;
+      let remaining = poolToDistribute;
       applicableIndices.forEach((idx) => {
-        newToAssign[idx] = allocation;
+        newToAssign[idx] = remaining > chunk ? chunk : remaining;
+        remaining -= Math.min(chunk, remaining);
       });
+      break;
     }
+    case "evenly": {
+      if (applicableIndices.length > 0) {
+        const eligibleCount = applicableIndices.length;
+        const share = Math.floor(poolToDistribute / eligibleCount);
+        const allocation = Math.min(share, Number(globalChunk) || share);
+        applicableIndices.forEach((idx) => {
+          newToAssign[idx] = allocation;
+        });
+      }
+      break;
+    }
+    default:
+      // No action for other modes.
+      break;
   }
+
   return newToAssign;
 };

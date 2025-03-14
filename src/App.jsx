@@ -1,12 +1,11 @@
 // app.jsx
-
 import React from "react";
-import TaskAllocationForm from "./taskAllocation";
+import TaskAllocationWrapper from "./TaskAllocationWrapper";
 
 const App = () => {
   return (
     <div>
-      <TaskAllocationForm />
+      <TaskAllocationWrapper />
     </div>
   );
 };
