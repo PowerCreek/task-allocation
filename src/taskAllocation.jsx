@@ -139,83 +139,6 @@ const recalcNPerUser = (
   setFieldValue(CONSTANTS.FIELD_KEYS.TO_ASSIGN, newAllocations);
 };
 
-const applyDistributedEvenLogic = (values, pool) => {
-  const globalChunk = Number(pool) || 0;
-  if (!globalChunk) return values[CONSTANTS.FIELD_KEYS.TO_ASSIGN];
-
-  const eligibleIndices = values[CONSTANTS.FIELD_KEYS.ACTION]
-    .map((act, idx) => (act === CONSTANTS.USER_ACTIONS.ADD ? idx : null))
-    .filter((idx) => idx !== null);
-  if (eligibleIndices.length === 0)
-    return values[CONSTANTS.FIELD_KEYS.TO_ASSIGN];
-
-  let newAllocations = new Array(
-    values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].length
-  ).fill(0);
-  let totalExplicitPercent = 0;
-  let explicitIndices = [],
-    implicitIndices = [];
-  eligibleIndices.forEach((idx) => {
-    const qualifier = Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]);
-    if (values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx] && qualifier <= 0)
-      return;
-    if (values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]) {
-      explicitIndices.push(idx);
-      totalExplicitPercent += qualifier;
-    } else {
-      implicitIndices.push(idx);
-    }
-  });
-  if (totalExplicitPercent > 100) {
-    throw new Error("Total locked percentages exceed 100%");
-  }
-  const allowImplicitAllocation = totalExplicitPercent < 100;
-  const remainingPercent = Math.max(0, 100 - totalExplicitPercent);
-  const minImplicitAllocation = allowImplicitAllocation
-    ? Math.min(globalChunk, implicitIndices.length)
-    : 0;
-  let remainingChunk = globalChunk - minImplicitAllocation;
-  let totalAllocated = 0;
-  explicitIndices.forEach((idx) => {
-    let percent = Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) / 100;
-    newAllocations[idx] = Math.floor(percent * remainingChunk);
-    totalAllocated += newAllocations[idx];
-  });
-  if (allowImplicitAllocation) {
-    implicitIndices.forEach((idx) => {
-      newAllocations[idx] = 1;
-      totalAllocated++;
-    });
-  }
-  let remainder = globalChunk - totalAllocated;
-  const allIndices = [...explicitIndices, ...implicitIndices];
-  for (let i = 0; i < allIndices.length && remainder > 0; i++) {
-    newAllocations[allIndices[i]]++;
-    remainder--;
-  }
-  explicitIndices.forEach((idx) => {
-    if (
-      Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) > 0 &&
-      newAllocations[idx] === 0
-    ) {
-      newAllocations[idx] = 1;
-    }
-  });
-  const explicitTotal = explicitIndices.reduce(
-    (sum, idx) => sum + newAllocations[idx],
-    0
-  );
-  const remainingPool = Math.max(0, Number(pool) - explicitTotal);
-  if (implicitIndices.length) {
-    const baseImplicit = Math.floor(remainingPool / implicitIndices.length);
-    const extraImplicit = remainingPool % implicitIndices.length;
-    implicitIndices.forEach((idx, i) => {
-      newAllocations[idx] = baseImplicit + (i < extraImplicit ? 1 : 0);
-    });
-  }
-  return newAllocations;
-};
-
 /* ---------------- Controlled Input Component ---------------- */
 
 // When an action is "exclude" we want to display an indeterminate field.
@@ -929,6 +852,12 @@ const DistributedEvenForm = ({
                           checked={
                             values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
                           }
+                          className={
+                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                            CONSTANTS.USER_ACTIONS.EXCLUDE
+                              ? ""
+                              : "custom-checkbox"
+                          }
                           disabled={
                             values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
                             CONSTANTS.USER_ACTIONS.EXCLUDE
@@ -1005,6 +934,25 @@ const NPerUserForm = ({
 }) => {
   const { values, setFieldValue } = formikProps;
   const totals = calcTotals(values);
+
+  // On mount, force the proxy to 0.
+  useEffect(() => {
+    setFieldValue("appliedPerUserChunk", 0);
+  }, [setFieldValue]);
+
+  // The proxy snapshot value for the per-user cap.
+  const appliedPerUserCap = Number(values.appliedPerUserChunk) || 0;
+
+  // When "Apply Global Add" is clicked, update the proxy and allocations.
+  const updateAppliedPerUserChunk = () => {
+    const newCap = Number(values.perUserChunk) || 0;
+    setFieldValue("appliedPerUserChunk", newCap);
+    setFieldValue(
+      CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+      applyGlobalAddLogic(values, baseAssignable, newCap)
+    );
+  };
+
   return (
     <>
       <div className="section">
@@ -1014,16 +962,19 @@ const NPerUserForm = ({
             type="number"
             name="perUserChunk"
             style={{ marginLeft: "5px", width: "60px" }}
+            // Clamp the perUserChunk between 0 and baseAssignable
+            onChange={(e) => {
+              let value = Number(e.target.value);
+              if (isNaN(value)) value = 0;
+              if (value < 0) value = 0;
+              if (value > baseAssignable) value = baseAssignable;
+              setFieldValue("perUserChunk", value);
+            }}
           />
         </label>
         <button
           type="button"
-          onClick={() =>
-            setFieldValue(
-              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-              applyGlobalAddLogic(values, baseAssignable)
-            )
-          }
+          onClick={updateAppliedPerUserChunk}
           className="button"
         >
           Apply Global Add
@@ -1036,7 +987,6 @@ const NPerUserForm = ({
             <th className="th">Current Tasks</th>
             <th className="th">Action</th>
             <th className="th">Change Amount</th>
-            <th className="th">Remaining</th>
             <th className="th">Pending Total</th>
           </tr>
         </thead>
@@ -1045,23 +995,6 @@ const NPerUserForm = ({
             const currentVal = Number(
               values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
             );
-            let remaining = 0;
-            if (
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.ADD
-            ) {
-              const poolForAddition = baseAssignable;
-              const addMax = Math.max(
-                0,
-                poolForAddition - (totals.totalAdded - currentVal)
-              );
-              remaining = Math.max(0, addMax - currentVal);
-            } else if (
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.SUBTRACT
-            ) {
-              remaining = user.tasks - currentVal;
-            }
             const pendingTotal =
               values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
               CONSTANTS.USER_ACTIONS.ADD
@@ -1091,6 +1024,7 @@ const NPerUserForm = ({
                           CONSTANTS.FIELD_KEYS.ACTION
                         ].map((act, i) => (i === idx ? newValue : act)),
                       };
+                      // Always use the proxy value for recalculations.
                       if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
                         setFieldValue(
                           `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
@@ -1100,15 +1034,27 @@ const NPerUserForm = ({
                           updatedValues,
                           setFieldValue,
                           baseAssignable,
-                          Number(values.perUserChunk) || 0
+                          appliedPerUserCap
                         );
                       } else if (newValue === CONSTANTS.USER_ACTIONS.ADD) {
-                        updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN] =
-                          applyGlobalAddLogic(updatedValues, baseAssignable);
-                        setFieldValue(
-                          CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                          updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN]
-                        );
+                        if (appliedPerUserCap === 0) {
+                          let newArr = [
+                            ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
+                          ];
+                          newArr[idx] = 0;
+                          setFieldValue(CONSTANTS.FIELD_KEYS.TO_ASSIGN, newArr);
+                        } else {
+                          updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN] =
+                            applyGlobalAddLogic(
+                              updatedValues,
+                              baseAssignable,
+                              appliedPerUserCap
+                            );
+                          setFieldValue(
+                            CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                            updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN]
+                          );
+                        }
                       }
                     }}
                     disabled={disableSelect(
@@ -1140,7 +1086,6 @@ const NPerUserForm = ({
                     style={{ width: "80px", padding: "5px" }}
                   />
                 </td>
-                <td className="td">{remaining}</td>
                 <td className="td">{pendingTotal}</td>
               </tr>
             );
@@ -1242,6 +1187,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
     });
     // Reset the appliedGlobalChunk to 0 on submit
     setFieldValue("appliedGlobalChunk", 0);
+    setFieldValue("appliedPerUserChunk", 0);
     setSubmitting(false);
   };
 
@@ -1258,8 +1204,9 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
           CONSTANTS.ALLOCATION_MODES.NORMAL,
         [CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
         perUserChunk: 0,
-        globalChunk: 10,
-        appliedGlobalChunk: 0, // New proxy variable initially set to 0
+        appliedPerUserChunk: 0, // New field to hold the intermediate pool value
+        globalChunk: 10, // for distributedEven mode, if still needed
+        appliedGlobalChunk: 0,
         [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
         [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
       }}
