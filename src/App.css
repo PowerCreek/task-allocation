@@ -39,7 +39,122 @@
 .read-the-docs {
   color: #888;
 }
+.custom-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
 
+  -moz-appearance: none;
+  height: 1.136rem !important;
+  aspect-ratio: 1.08 !important;
+  cursor: pointer;
+  display: flex;
+  padding: 0px;
+  border-radius: 3px;
+  margin: unset;
+  border-color: light-dark(rgb(110, 110, 110), rgb(122, 122, 122));
+}
+
+.custom-checkbox:focus {
+  outline: none;
+  border-color: light-dark(rgb(118, 118, 118), rgb(133, 133, 133)) !important;
+  border-radius: 3px;
+}
+
+.custom-checkbox::before {
+  content: "";
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: light-dark(#fff, #3b3b3b);
+  border-radius: 3px;
+  border-width: unset;
+}
+
+.custom-checkbox:hover {
+  border-color: light-dark(rgb(80, 80, 80), rgb(153, 153, 153));
+}
+
+.custom-checkbox:checked {
+  border: unset !important;
+}
+
+.custom-checkbox:checked::before {
+  background-color: light-dark(#007bff, #99c8ff);
+  border-color: light-dark(rgb(118, 118, 118), #99c8ff);
+  box-shadow: none;
+}
+
+:root {
+  --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="10" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+
+  --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="10" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+}
+
+.custom-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  aspect-ratio: 1;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  margin: 0px 1px;
+  background-image: var(--checkbox-svg-dark);
+}
+
+@media (prefers-color-scheme: light) {
+  .custom-checkbox:checked::after {
+    background-image: var(--checkbox-svg-light);
+  }
+}
+
+.custom-checkbox:hover::before {
+  border-color: light-dark(transparent, #b3b3b3);
+}
+
+.custom-checkbox:focus-visible {
+  outline: 2px solid light-dark(#b3b3b3, #007bff);
+  outline-offset: 2px;
+}
+
+div:has(.qualifierInputContainer) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: -24px -10px;
+  position: relative;
+  height: 100%;
+  padding: 10px;
+}
+input[type="checkbox"] {
+  height: 1.22rem;
+  aspect-ratio: 1;
+  position: relative;
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+}
+
+div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]) *,
+div:has(> [name^="qualifier"][disabled]) {
+  cursor: not-allowed;
+}
+input[name^="qualifier["] {
+  direction: rtl;
+  padding-right: 20px !important;
+}
+input[name^="qualifier"]::-webkit-inner-spin-button,
+input[name^="qualifier"]::-webkit-outer-spin-button {
+  right: auto;
+}
+.qualifierInputContainer::after {
+  content: "%";
+  font-size: 16px;
+  color: #555;
+  pointer-events: none;
+  position: relative;
+  right: 20px;
+  top: 1px;
+}
 input:not([type="radio"]) {
   cursor: auto;
 }

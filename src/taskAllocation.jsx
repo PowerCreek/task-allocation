@@ -216,6 +216,10 @@ const applyDistributedEvenLogic = (values, pool) => {
   return newAllocations;
 };
 
+/* ---------------- Controlled Input Component ---------------- */
+
+// When an action is "exclude" we want to display an indeterminate field.
+// We pass a new prop "isExcluded" to indicate that.
 const ControlledToAssignInput = ({
   field,
   form,
@@ -223,7 +227,12 @@ const ControlledToAssignInput = ({
   onValidatedChange,
   readOnly,
   style,
+  isExcluded,
 }) => {
+  // If the action is excluded, show a read-only text field with "Indeterminate"
+  if (isExcluded) {
+    return <input type="number" value="0" readOnly style={style} />;
+  }
   const [internalValue, setInternalValue] = useState(field.value);
   useEffect(() => {
     setInternalValue(field.value);
@@ -339,6 +348,11 @@ const NormalAllocationForm = ({
                   component={ControlledToAssignInput}
                   index={idx}
                   onValidatedChange={handleFieldChange}
+                  // Pass the isExcluded prop based on action value
+                  isExcluded={
+                    values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                    CONSTANTS.USER_ACTIONS.EXCLUDE
+                  }
                   readOnly={false}
                   style={{ width: "80px", padding: "5px" }}
                 />
@@ -369,10 +383,8 @@ const NormalAllocationForm = ({
 
 /**
  * DistributedEvenForm renders the UI for Distributed Evenly mode.
- * Here we store an applied pool (globalPool) separately from the
- * raw input globalChunk value. The global chunk input is clamped
- * to be within 0 and the base assignable, and the Apply Global Add
- * button sets the applied pool without modifying other distribution values.
+ * In this version we use a new appliedGlobalChunk field (updated only via the button)
+ * for distribution. Its value resets to 0 on submit.
  */
 const DistributedEvenForm = ({
   formikProps,
@@ -381,136 +393,214 @@ const DistributedEvenForm = ({
   handleFieldChange,
 }) => {
   const { values, setFieldValue } = formikProps;
-  // We no longer rely on a separate state for globalPool,
-  // instead we pass the current values.globalChunk to our update logic.
 
-  // consolidateValues uses the provided pool value to calculate distribution.
-  const consolidateValues = (vals, pool) => {
-    const actions = vals[CONSTANTS.FIELD_KEYS.ACTION];
-    const origQuals = vals[CONSTANTS.FIELD_KEYS.QUALIFIER];
-    const origLocks = vals[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED];
+  // Function for when explicit percentages sum to less than 100%
+  const consolidateValuesBelow100 = (vals, pool) => {
+    const { ACTION, QUALIFIER, QUALIFIER_LOCKED, TO_ASSIGN } =
+      CONSTANTS.FIELD_KEYS;
+    const actions = vals[ACTION];
+    const origQuals = vals[QUALIFIER];
+    const origLocks = vals[QUALIFIER_LOCKED];
 
-    // 1. Apply EXCLUDE logic
+    // 1. Compute forced percentages: if excluded, treat as 0.
     const forcedQuals = origQuals.map((q, i) =>
       actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
     );
-    const forcedLocks = origLocks.map((l, i) =>
-      actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? true : l
-    );
 
-    // 2. Partition into explicit (override) and implicit (dynamic) groups
-    let explicit = [],
-      implicit = [];
-    forcedQuals.forEach((q, i) => {
-      if (actions[i] !== CONSTANTS.USER_ACTIONS.EXCLUDE) {
-        if (forcedLocks[i] && q > 0) {
-          explicit.push(i); // Only include locked workers with a percent > 0
-        } else if (!forcedLocks[i]) {
-          implicit.push(i);
-        }
-      }
+    // 2. Identify explicit fields: locked and percent > 0.
+    const explicitFields = origQuals
+      .map((q, i) => ({ index: i, percent: q }))
+      .filter(
+        ({ index, percent }) =>
+          actions[index] !== CONSTANTS.USER_ACTIONS.EXCLUDE &&
+          origLocks[index] &&
+          percent > 0
+      )
+      .sort((a, b) => b.percent - a.percent);
+
+    // Identify implicit fields: those not locked.
+    const implicitIndices = origQuals
+      .map((q, i) => i)
+      .filter(
+        (i) => actions[i] !== CONSTANTS.USER_ACTIONS.EXCLUDE && !origLocks[i]
+      );
+
+    // Identify excluded explicit fields: locked with percent = 0.
+    const excludedIndices = origQuals
+      .map((q, i) => ({ index: i, percent: q }))
+      .filter(
+        ({ index, percent }) =>
+          actions[index] !== CONSTANTS.USER_ACTIONS.EXCLUDE &&
+          origLocks[index] &&
+          percent === 0
+      )
+      .map(({ index }) => index);
+
+    // 3. Compute each explicit field’s ideal allocation.
+    const explicitAllocations = explicitFields.map((f) => {
+      const ideal = pool > 0 ? (forcedQuals[f.index] / 100) * pool : 0;
+      const initial = ideal > 0 ? Math.max(1, Math.floor(ideal)) : 0;
+      const cap = Math.ceil(ideal);
+      return { index: f.index, ideal, initial, cap, allocation: initial };
     });
 
-    let finalDist = new Array(origQuals.length).fill(0);
-    let remainingPool = pool; // Track remaining tasks to distribute
+    // 4. Sum explicit allocations and compute leftover.
+    const explicitTotal = explicitAllocations.reduce(
+      (sum, f) => sum + f.allocation,
+      0
+    );
+    let leftover = pool - explicitTotal;
 
-    // 3. Compute total override percentage
-    let totalOverridePercent = explicit.reduce(
-      (sum, i) => sum + Number(forcedQuals[i]),
+    // 5. Adjust explicit allocations if needed.
+    if (implicitIndices.length > 0 && leftover < implicitIndices.length) {
+      const needed = implicitIndices.length - leftover;
+      const adjustedExplicit = explicitAllocations
+        .sort((a, b) => b.allocation - a.allocation)
+        .map((a, i) =>
+          i < needed && a.allocation > 1
+            ? { ...a, allocation: a.allocation - 1 }
+            : a
+        );
+
+      explicitAllocations.length = 0;
+      adjustedExplicit.forEach((a) => explicitAllocations.push(a));
+      leftover = pool - adjustedExplicit.reduce((s, a) => s + a.allocation, 0);
+    }
+
+    // 6. Cap explicit fields: final allocation = min(allocation, cap).
+    let finalDist = new Array(origQuals.length).fill(0);
+    explicitAllocations.forEach((f) => {
+      finalDist[f.index] = Math.min(f.allocation, f.cap);
+    });
+
+    // Set excluded explicit fields to 0.
+    excludedIndices.forEach((i) => {
+      finalDist[i] = 0;
+    });
+
+    // 7. Distribute leftover evenly among implicit fields.
+    if (leftover > 0 && implicitIndices.length > 0) {
+      const avg = Math.floor(leftover / implicitIndices.length);
+      const rem = leftover % implicitIndices.length;
+      implicitIndices.forEach((i, idx) => {
+        finalDist[i] = avg + (idx < rem ? 1 : 0);
+      });
+    }
+
+    // Ensure no NaN values in the final distribution
+    finalDist = finalDist.map((v) => (isNaN(v) ? 0 : v));
+
+    return { ...vals, [TO_ASSIGN]: finalDist };
+  };
+
+  const consolidateValuesAt100 = (vals, pool) => {
+    const { ACTION, QUALIFIER, QUALIFIER_LOCKED, TO_ASSIGN } =
+      CONSTANTS.FIELD_KEYS;
+    const actions = vals[ACTION];
+    const origQuals = vals[QUALIFIER];
+    const origLocks = vals[QUALIFIER_LOCKED];
+
+    const forcedQuals = origQuals.map((q, i) =>
+      actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
+    );
+
+    const explicitFields = origQuals
+      .map((q, i) => ({ index: i, percent: q }))
+      .filter(
+        ({ index, percent }) =>
+          actions[index] !== CONSTANTS.USER_ACTIONS.EXCLUDE &&
+          origLocks[index] &&
+          percent > 0
+      );
+
+    const sumExplicit = explicitFields.reduce(
+      (sum, f) => sum + forcedQuals[f.index],
+      0
+    );
+    const availableExplicitPool = pool;
+
+    if (sumExplicit === 0) {
+      // If no explicit percentages are defined, assign zero to all
+      return { ...vals, [TO_ASSIGN]: new Array(origQuals.length).fill(0) };
+    }
+
+    // Step 1: Compute ideal allocations, floor values, and remainder
+    let explicitAllocations = explicitFields.map((f) => {
+      const ideal =
+        (forcedQuals[f.index] / sumExplicit) * availableExplicitPool;
+      const initial = Math.max(1, Math.floor(ideal)); // Ensure at least 1 if ideal > 0
+      const cap = Math.ceil(ideal);
+      return {
+        index: f.index,
+        ideal,
+        initial,
+        cap,
+        remainder: ideal - initial, // Track how much was lost due to flooring
+      };
+    });
+
+    // Step 2: Compute total allocated and distribute remaining tasks
+    let totalAllocated = explicitAllocations.reduce(
+      (sum, f) => sum + f.initial,
+      0
+    );
+    let leftover = availableExplicitPool - totalAllocated;
+
+    // Step 3: Assign leftover tasks to fields with highest remainder
+    explicitAllocations.sort((a, b) => b.remainder - a.remainder);
+    for (let i = 0; i < leftover; i++) {
+      explicitAllocations[i % explicitAllocations.length].initial++;
+    }
+
+    // Step 4: Construct final distribution
+    let finalDist = new Array(origQuals.length).fill(0);
+    explicitAllocations.forEach((f) => {
+      finalDist[f.index] = f.initial;
+    });
+
+    // Ensure no NaN values
+    finalDist = finalDist.map((v) => (isNaN(v) ? 0 : v));
+
+    return { ...vals, [TO_ASSIGN]: finalDist };
+  };
+
+  const consolidateValues = (vals, pool) => {
+    const { ACTION, QUALIFIER, QUALIFIER_LOCKED } = CONSTANTS.FIELD_KEYS;
+    const actions = vals[ACTION];
+    const origQuals = vals[QUALIFIER];
+    const origLocks = vals[QUALIFIER_LOCKED];
+
+    const forcedQuals = origQuals.map((q, i) =>
+      actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
+    );
+
+    const explicitFields = origQuals
+      .map((q, i) => ({ index: i, percent: q }))
+      .filter(
+        ({ index, percent }) =>
+          actions[index] !== CONSTANTS.USER_ACTIONS.EXCLUDE &&
+          origLocks[index] &&
+          percent > 0
+      );
+
+    const totalExplicitPercent = explicitFields.reduce(
+      (sum, f) => sum + forcedQuals[f.index],
       0
     );
 
-    // 4. Compute the dynamic pool and override pool
-    let dynamicPool = 0;
-    let overridePool = remainingPool;
+    let result =
+      totalExplicitPercent >= 100
+        ? consolidateValuesAt100(vals, pool)
+        : consolidateValuesBelow100(vals, pool);
 
-    if (totalOverridePercent < 100) {
-      dynamicPool = Math.floor(
-        remainingPool * ((100 - totalOverridePercent) / 100)
-      );
+    // Ensure the TO_ASSIGN array does not contain NaN values
+    result[CONSTANTS.FIELD_KEYS.TO_ASSIGN] = result[
+      CONSTANTS.FIELD_KEYS.TO_ASSIGN
+    ].map((v) => (isNaN(v) ? 0 : v));
 
-      // Ensure there's enough for dynamic workers
-      let minDynamicRequired = implicit.length;
-      if (dynamicPool < minDynamicRequired) {
-        dynamicPool = minDynamicRequired;
-        overridePool = remainingPool - minDynamicRequired;
-      }
-
-      // Assign at least 1 task to each dynamic worker
-      implicit.forEach((i) => {
-        finalDist[i] = 1;
-        remainingPool--; // Reduce remaining pool
-      });
-
-      overridePool -= implicit.length - 1;
-
-      // If dynamic pool still has extra tasks, distribute evenly among implicit workers
-      if (dynamicPool > implicit.length) {
-        let extraTasks = dynamicPool - implicit.length;
-        let baseDynamic = Math.floor(extraTasks / implicit.length);
-        let remainder = extraTasks % implicit.length;
-
-        implicit.forEach((i, index) => {
-          if (remainingPool > 0) {
-            let allocation = baseDynamic + (index < remainder ? 1 : 0);
-            finalDist[i] += allocation;
-            remainingPool -= allocation;
-          }
-        });
-      }
-    } else {
-      // If override total is 100%, implicit workers get 0 tasks
-      implicit.forEach((i) => (finalDist[i] = 0));
-    }
-
-    // 5. Allocate override workers
-
-    // First assign a minimum of 1 task to each override worker.
-    explicit.forEach((i) => {
-      if (remainingPool > 0) {
-        finalDist[i] = 1;
-        remainingPool--;
-      }
-    });
-
-    // 6. Distribute remaining override pool proportionally
-    if (remainingPool > 0) {
-      let totalRemainingPercent = explicit.reduce(
-        (sum, i) => sum + Number(forcedQuals[i]),
-        0
-      );
-
-      explicit.forEach((i) => {
-        if (totalRemainingPercent > 0 && remainingPool > 0) {
-          let extraTasks = Math.floor(
-            (forcedQuals[i] / totalRemainingPercent) * remainingPool
-          );
-          finalDist[i] += extraTasks;
-          remainingPool -= extraTasks;
-        }
-      });
-
-      // Adjust for rounding errors (ensuring total tasks match the pool)
-      explicit.forEach((i) => {
-        if (remainingPool > 0) {
-          finalDist[i]++;
-          remainingPool--;
-        }
-      });
-      if (remainingPool > 0) {
-        explicit.forEach((i) => {
-          if (remainingPool > 0) {
-            finalDist[i]++;
-            remainingPool--;
-          }
-        });
-      }
-    }
-
-    return { ...vals, [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: finalDist };
+    return result;
   };
 
-  // updateDistribution now accepts a pool value.
   const updateDistribution = (updatedValues, pool) => {
     const consolidated = consolidateValues(updatedValues, pool);
     setFieldValue(
@@ -519,7 +609,6 @@ const DistributedEvenForm = ({
     );
   };
 
-  // The qualifier onChange handler clamps input and updates distribution if a pool is applied.
   const handleQualifierChange = (e, idx) => {
     const newCandidate = Number(e.target.value) || 0;
     const clamped = CumulativePercent.clampValue(values, idx, newCandidate);
@@ -533,12 +622,11 @@ const DistributedEvenForm = ({
       [CONSTANTS.FIELD_KEYS.QUALIFIER]: updatedQualifiers,
     };
     CumulativePercent.recalc(updatedValues, setFieldValue);
-    if (Number(values.globalChunk) > 0) {
-      updateDistribution(updatedValues, Number(values.globalChunk));
+    if (Number(values.appliedGlobalChunk) > 0) {
+      updateDistribution(updatedValues, Number(values.appliedGlobalChunk));
     }
   };
 
-  // Clamp the raw globalChunk input to be between 0 and baseAssignable.
   useEffect(() => {
     let value = Number(values.globalChunk);
     if (isNaN(value) || value < 0) {
@@ -551,7 +639,6 @@ const DistributedEvenForm = ({
     }
   }, [values.globalChunk, baseAssignable, setFieldValue]);
 
-  // On mount, reset qualifier locks and recalc percentages.
   const reacalculateAllValues = () => {
     const updatedValues = {
       ...values,
@@ -564,13 +651,11 @@ const DistributedEvenForm = ({
 
   useEffect(() => {
     reacalculateAllValues();
-    // Do not update distribution here; wait until user applies a pool.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The Apply Global Add button saves the current globalChunk value as the applied pool and updates distribution.
   const updateConsolidatedValues = () => {
     const newPool = Number(values.globalChunk);
+    setFieldValue("appliedGlobalChunk", newPool);
     updateDistribution(values, newPool);
   };
 
@@ -624,7 +709,7 @@ const DistributedEvenForm = ({
               values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
               CONSTANTS.USER_ACTIONS.ADD
             ) {
-              const poolForAddition = Number(values.globalChunk);
+              const poolForAddition = Number(values.appliedGlobalChunk);
               const addMax = Math.max(
                 0,
                 poolForAddition - (totals.totalAdded - currentVal)
@@ -680,11 +765,16 @@ const DistributedEvenForm = ({
                     value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                     onChange={(e) => {
                       const newValue = e.target.value;
+                      const prevValue =
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx];
+
                       setFieldValue(
                         `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
                         newValue
                       );
+
                       if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+                        // When switching to EXCLUDE, set all relevant fields to 0
                         setFieldValue(
                           `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
                           0
@@ -695,11 +785,87 @@ const DistributedEvenForm = ({
                         );
                         setFieldValue(
                           `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                          true
+                          false
                         );
-                      }
-                      if (Number(values.globalChunk) > 0) {
-                        updateDistribution(values, Number(values.globalChunk));
+
+                        // Trigger redistribution
+                        const updatedValues = {
+                          ...values,
+                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                            CONSTANTS.FIELD_KEYS.ACTION
+                          ].map((act, i) =>
+                            i === idx ? CONSTANTS.USER_ACTIONS.EXCLUDE : act
+                          ),
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER
+                          ].map((q, i) => (i === idx ? 0 : q)),
+                        };
+
+                        CumulativePercent.recalc(updatedValues, setFieldValue);
+                        updateDistribution(
+                          updatedValues,
+                          Number(values.appliedGlobalChunk)
+                        );
+                      } else if (
+                        prevValue === CONSTANTS.USER_ACTIONS.EXCLUDE &&
+                        newValue === CONSTANTS.USER_ACTIONS.ADD
+                      ) {
+                        // When switching from EXCLUDE to ADD, reset to the initial mount state
+                        const initialRowState = {
+                          action: CONSTANTS.USER_ACTIONS.ADD, // Default action
+                          toAssign: 0, // No tasks assigned initially
+                          qualifier: 0, // Default percentage
+                          qualifierLocked: false, // Not locked initially
+                        };
+
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                          initialRowState.toAssign
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
+                          initialRowState.qualifier
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                          initialRowState.qualifierLocked
+                        );
+
+                        // Update values like resetting the row
+                        const updatedValues = {
+                          ...values,
+                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                            CONSTANTS.FIELD_KEYS.ACTION
+                          ].map((act, i) =>
+                            i === idx ? initialRowState.action : act
+                          ),
+                          [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: values[
+                            CONSTANTS.FIELD_KEYS.TO_ASSIGN
+                          ].map((assign, i) =>
+                            i === idx ? initialRowState.toAssign : assign
+                          ),
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER
+                          ].map((q, i) =>
+                            i === idx ? initialRowState.qualifier : q
+                          ),
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                          ].map((locked, i) =>
+                            i === idx ? initialRowState.qualifierLocked : locked
+                          ),
+                        };
+
+                        // Recalculate everything like a fresh state
+                        CumulativePercent.recalc(updatedValues, setFieldValue);
+
+                        // If global allocation was applied, reapply it
+                        if (Number(values.appliedGlobalChunk) > 0) {
+                          updateDistribution(
+                            updatedValues,
+                            Number(values.appliedGlobalChunk)
+                          );
+                        }
                       }
                     }}
                     disabled={disableSelect(
@@ -718,65 +884,91 @@ const DistributedEvenForm = ({
                   </Field>
                 </td>
                 <td className="td">
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "5px",
-                    }}
-                  >
-                    <Field
-                      name={`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`}
-                      type="number"
-                      onChange={(e) => handleQualifierChange(e, idx)}
-                      value={
-                        values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                          ? computedValue
-                          : ""
-                      }
-                      placeholder={
-                        !values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                          ? qualifierValue < 1 && remPercentVal > 0
-                            ? "<1%"
-                            : computedValue
-                          : ""
-                      }
-                      style={{ width: "60px", padding: "5px" }}
-                      readOnly={
-                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                        CONSTANTS.USER_ACTIONS.EXCLUDE
-                      }
-                    />
+                  <div>
+                    <div className="qualifierInputContainer">
+                      <Field
+                        name={`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`}
+                        type="number"
+                        disabled={
+                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                          CONSTANTS.USER_ACTIONS.EXCLUDE
+                        }
+                        onChange={(e) => handleQualifierChange(e, idx)}
+                        value={
+                          values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                            ? computedValue
+                            : ""
+                        }
+                        placeholder={
+                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                          CONSTANTS.USER_ACTIONS.EXCLUDE
+                            ? "0"
+                            : !values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
+                                idx
+                              ]
+                            ? qualifierValue < 1 && remPercentVal > 0
+                              ? "0<"
+                              : computedValue
+                            : ""
+                        }
+                        style={{ width: "60px", padding: "5px" }}
+                        readOnly={
+                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                          CONSTANTS.USER_ACTIONS.EXCLUDE
+                        }
+                      />
+                    </div>
+
                     <Field
                       name={`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
-                      type="checkbox"
-                      onChange={(e) => {
-                        const newLocked = e.target.checked;
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                          newLocked
-                        );
-                        const updatedValues = {
-                          ...values,
-                          [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                            CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
-                          ].map((val, i) => (i === idx ? newLocked : val)),
-                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                            CONSTANTS.FIELD_KEYS.QUALIFIER
-                          ].map((q, i) =>
-                            i === idx ? (newLocked ? computedValue : 0) : q
-                          ),
-                        };
-                        CumulativePercent.recalc(updatedValues, setFieldValue);
-                        updateDistribution(
-                          updatedValues,
-                          Number(values.globalChunk)
-                        );
-                      }}
-                      checked={
-                        values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                      }
-                    />
+                    >
+                      {({ field }) => (
+                        <input
+                          {...field}
+                          type="checkbox"
+                          checked={
+                            values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                          }
+                          disabled={
+                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                            CONSTANTS.USER_ACTIONS.EXCLUDE
+                          }
+                          ref={(input) => {
+                            if (input) {
+                              input.indeterminate =
+                                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                                CONSTANTS.USER_ACTIONS.EXCLUDE;
+                            }
+                          }}
+                          onChange={(e) => {
+                            const newLocked = e.target.checked;
+                            setFieldValue(
+                              `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                              newLocked
+                            );
+                            const updatedValues = {
+                              ...values,
+                              [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                                CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                              ].map((val, i) => (i === idx ? newLocked : val)),
+                              [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                                CONSTANTS.FIELD_KEYS.QUALIFIER
+                              ].map((q, i) =>
+                                i === idx ? (newLocked ? q : 0) : q
+                              ),
+                            };
+                            CumulativePercent.recalc(
+                              updatedValues,
+                              setFieldValue
+                            );
+                            updateDistribution(
+                              updatedValues,
+                              Number(values.appliedGlobalChunk)
+                            );
+                          }}
+                        />
+                      )}
+                    </Field>
                   </div>
                 </td>
 
@@ -786,6 +978,11 @@ const DistributedEvenForm = ({
                     component={ControlledToAssignInput}
                     index={idx}
                     onValidatedChange={handleFieldChange}
+                    // Pass isExcluded so the field shows "Indeterminate"
+                    isExcluded={
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                      CONSTANTS.USER_ACTIONS.EXCLUDE
+                    }
                     readOnly={true}
                     style={{ width: "80px", padding: "5px" }}
                   />
@@ -935,6 +1132,10 @@ const NPerUserForm = ({
                     component={ControlledToAssignInput}
                     index={idx}
                     onValidatedChange={handleFieldChange}
+                    isExcluded={
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                      CONSTANTS.USER_ACTIONS.EXCLUDE
+                    }
                     readOnly={true}
                     style={{ width: "80px", padding: "5px" }}
                   />
@@ -1039,6 +1240,8 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
     values[CONSTANTS.FIELD_KEYS.TO_ASSIGN].forEach((_, idx) => {
       setFieldValue(`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
     });
+    // Reset the appliedGlobalChunk to 0 on submit
+    setFieldValue("appliedGlobalChunk", 0);
     setSubmitting(false);
   };
 
@@ -1056,6 +1259,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
         [CONSTANTS.FIELD_KEYS.GLOBAL_ADD_MODE]: "perUser",
         perUserChunk: 0,
         globalChunk: 10,
+        appliedGlobalChunk: 0, // New proxy variable initially set to 0
         [CONSTANTS.FIELD_KEYS.QUALIFIER]: users.map(() => 0),
         [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: users.map(() => false),
       }}
