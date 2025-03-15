@@ -39,6 +39,10 @@
 .read-the-docs {
   color: #888;
 }
+
+.tasks table {
+  width: min-content;
+}
 .custom-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -84,20 +88,20 @@
 }
 
 :root {
-  --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="10" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+  --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
 
-  --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="10" height="10" rx="2"/><path d="M9 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+  --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
 }
 
 .custom-checkbox:checked::after {
   content: "";
   position: absolute;
-  width: 18px;
+  width: 20px;
   aspect-ratio: 1;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  margin: 0px 1px;
+  margin: 0px 0px 0px 1px;
   background-image: var(--checkbox-svg-dark);
 }
 
@@ -116,7 +120,7 @@
   outline-offset: 2px;
 }
 
-div:has(.qualifierInputContainer) {
+div:has(> .qualifierInputContainer) {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -124,9 +128,17 @@ div:has(.qualifierInputContainer) {
   position: relative;
   height: 100%;
   padding: 10px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.qualifierInputContainer {
+  width: calc(100% - 21px);
+  display: flex;
+  padding-right: 10px;
+  align-items: center;
 }
 input[type="checkbox"] {
-  height: 1.22rem;
+  height: 1.27rem !important;
   aspect-ratio: 1;
   position: relative;
 }
@@ -143,6 +155,7 @@ div:has(> [name^="qualifier"][disabled]) {
 input[name^="qualifier["] {
   direction: rtl;
   padding-right: 20px !important;
+  width: 50px;
 }
 input[name^="qualifier"]::-webkit-inner-spin-button,
 input[name^="qualifier"]::-webkit-outer-spin-button {
@@ -155,7 +168,7 @@ input[name^="qualifier"]::-webkit-outer-spin-button {
   pointer-events: none;
   position: relative;
   right: 20px;
-  top: 1px;
+  width: 0px;
 }
 input:not([type="radio"]) {
   cursor: auto;
@@ -167,7 +180,14 @@ input:not([type="radio"]) {
 .td:has(button) {
   padding: 0px;
 }
-input[name*="toAssign"][readonly] {
+input[name*="toAssign"] {
+  cursor: text;
+}
+input[name*="exclude"],
+input[name*="toAssign"] {
+  width: 50px;
+}
+input[name*="exclude"][readonly] {
   cursor: not-allowed;
 }
 /* Light Mode Styles */
@@ -225,12 +245,11 @@ h3 {
 }
 .button {
   padding: 7px 12px;
-  margin: 3px;
+  height: 30px;
   cursor: pointer;
   background-color: #1a73e8;
   color: white;
   border: none;
-  border-radius: 5px;
   transition: background-color 0.3s ease;
 }
 .button:hover {
@@ -260,6 +279,11 @@ select:focus {
   border-color: #1a73e8;
   box-shadow: 0 0 5px rgba(26, 115, 232, 0.5);
 }
+
+.button.number {
+  width: 60px;
+}
+
 .section:nth-of-type(1) {
   justify-self: start;
   grid-row: 1;
@@ -294,6 +318,7 @@ table ~ button {
   grid-row: 2 !important;
   grid-column: 1 / span 2 !important;
   width: 100%;
+  justify-content: space-between;
 }
 table {
   grid-row: 3;

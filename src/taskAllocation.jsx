@@ -36,6 +36,27 @@ const CONSTANTS = {
   },
 };
 
+const FIELD_NAMES = {
+  TO_ASSIGN: "Change Amount",
+  ACTION: "Action",
+  ALLOCATION_MODE: "Allocation Mode",
+  GLOBAL_ADD_MODE: "Global Add Mode",
+  QUALIFIER: "Percent (%)",
+  QUALIFIER_LOCKED: "Qualifier Locked",
+  PER_USER_CHUNK: "Per User Chunk",
+  GLOBAL_CHUNK: "Global Chunk",
+  APPLIED_GLOBAL_CHUNK: "Applied Global Chunk",
+  APPLIED_PER_USER_CHUNK: "Applied Per",
+  TOTAL_ADDED: "Total Added",
+  TOTAL_SUBTRACTED: "Total Subtracted",
+  TOTAL_ALLOCATED: "Total Allocated",
+  PENDING_TOTAL: "Pending Total",
+  REMAINING: "Remaining",
+  CURRENT_TASKS: "Current Tasks",
+  PERCENT: "Percent (%)",
+  CHANGE_AMOUNT: "Change Amount",
+};
+
 // Add new keys for qualifier fields.
 CONSTANTS.FIELD_KEYS.QUALIFIER = "qualifier";
 CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED = "qualifierLocked";
@@ -191,11 +212,11 @@ const NormalAllocationForm = ({
       <thead>
         <tr>
           <th className="th">User</th>
-          <th className="th">Current Tasks</th>
-          <th className="th">Action</th>
-          <th className="th">Change Amount</th>
-          <th className="th">Remaining</th>
-          <th className="th">Pending Total</th>
+          <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+          <th className="th">{FIELD_NAMES.ACTION}</th>
+          <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+          <th className="th">{FIELD_NAMES.REMAINING}</th>
+          <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
         </tr>
       </thead>
       <tbody>
@@ -257,7 +278,6 @@ const NormalAllocationForm = ({
                     baseAssignable,
                     user.tasks
                   )}
-                  style={{ width: "100px", padding: "5px" }}
                 >
                   <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
                   <option value={CONSTANTS.USER_ACTIONS.SUBTRACT}>
@@ -277,7 +297,6 @@ const NormalAllocationForm = ({
                     CONSTANTS.USER_ACTIONS.EXCLUDE
                   }
                   readOnly={false}
-                  style={{ width: "80px", padding: "5px" }}
                 />
               </td>
               <td className="td">
@@ -290,7 +309,7 @@ const NormalAllocationForm = ({
                         remaining
                     )
                   }
-                  className="button"
+                  className="button number"
                 >
                   {remaining}
                 </button>
@@ -586,14 +605,13 @@ const DistributedEvenForm = ({
   return (
     <>
       <div className="section">
-        <label className="label" style={{ marginRight: "10px" }}>
+        <label className="label">
           Global Chunk (Cap per User):
           <Field
             type="number"
             name="globalChunk"
             min="0"
             max={baseAssignable}
-            style={{ marginLeft: "5px", width: "60px" }}
             onChange={(e) => {
               let value = Number(e.target.value);
               if (isNaN(value)) value = 0;
@@ -615,11 +633,11 @@ const DistributedEvenForm = ({
         <thead>
           <tr>
             <th className="th">User</th>
-            <th className="th">Current Tasks</th>
-            <th className="th">Action</th>
-            <th className="th">Weighted Percent (%)</th>
-            <th className="th">Change Amount</th>
-            <th className="th">Pending Total</th>
+            <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+            <th className="th">{FIELD_NAMES.ACTION}</th>
+            <th className="th">{FIELD_NAMES.PERCENT}</th>
+            <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+            <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
           </tr>
         </thead>
         <tbody>
@@ -798,7 +816,6 @@ const DistributedEvenForm = ({
                       baseAssignable,
                       user.tasks
                     )}
-                    style={{ width: "100px", padding: "5px" }}
                   >
                     <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
                     <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
@@ -834,7 +851,6 @@ const DistributedEvenForm = ({
                               : computedValue
                             : ""
                         }
-                        style={{ width: "60px", padding: "5px" }}
                         readOnly={
                           values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
                           CONSTANTS.USER_ACTIONS.EXCLUDE
@@ -913,7 +929,6 @@ const DistributedEvenForm = ({
                       CONSTANTS.USER_ACTIONS.EXCLUDE
                     }
                     readOnly={true}
-                    style={{ width: "80px", padding: "5px" }}
                   />
                 </td>
                 <td className="td">{pendingTotal}</td>
@@ -956,12 +971,11 @@ const NPerUserForm = ({
   return (
     <>
       <div className="section">
-        <label className="label" style={{ marginRight: "10px" }}>
+        <label className="label">
           Per User Chunk:
           <Field
             type="number"
             name="perUserChunk"
-            style={{ marginLeft: "5px", width: "60px" }}
             // Clamp the perUserChunk between 0 and baseAssignable
             onChange={(e) => {
               let value = Number(e.target.value);
@@ -984,10 +998,10 @@ const NPerUserForm = ({
         <thead>
           <tr>
             <th className="th">User</th>
-            <th className="th">Current Tasks</th>
-            <th className="th">Action</th>
-            <th className="th">Change Amount</th>
-            <th className="th">Pending Total</th>
+            <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+            <th className="th">{FIELD_NAMES.ACTION}</th>
+            <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+            <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
           </tr>
         </thead>
         <tbody>
@@ -1064,7 +1078,6 @@ const NPerUserForm = ({
                       baseAssignable,
                       user.tasks
                     )}
-                    style={{ width: "100px", padding: "5px" }}
                   >
                     <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
                     <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
@@ -1074,16 +1087,16 @@ const NPerUserForm = ({
                 </td>
                 <td className="td">
                   <Field
-                    name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
+                    name={
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                      CONSTANTS.USER_ACTIONS.EXCLUDE
+                        ? `exclude[${idx}]`
+                        : `toAssign[${idx}]`
+                    }
                     component={ControlledToAssignInput}
                     index={idx}
                     onValidatedChange={handleFieldChange}
-                    isExcluded={
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                      CONSTANTS.USER_ACTIONS.EXCLUDE
-                    }
                     readOnly={true}
-                    style={{ width: "80px", padding: "5px" }}
                   />
                 </td>
                 <td className="td">{pendingTotal}</td>
@@ -1213,7 +1226,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
       onSubmit={handleSubmit}
     >
       {({ values, setFieldValue, setValues }) => (
-        <Form className="container">
+        <Form className="container tasks">
           <div className="section">
             <h3>Allocation Mode</h3>
             <div className="radio-group">
@@ -1334,11 +1347,12 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
           })()}
           <div className="section info-row">
             <div>
-              Effective Pool: {calcEffectivePool(baseAssignable, values)}
+              <strong> Effective Pool:</strong>{" "}
+              {calcEffectivePool(baseAssignable, values)}
             </div>
             <div>
-              <strong>Total Allocated (Add):</strong>{" "}
-              {calcTotals(values).totalAdded} / {baseAssignable}
+              <strong>Total Allocated:</strong> {calcTotals(values).totalAdded}{" "}
+              / {baseAssignable}
             </div>
           </div>
           <button
