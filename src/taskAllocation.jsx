@@ -697,12 +697,12 @@ const DistributedEvenForm = ({
                 <td className="td">
                   <Field
                     as="select"
-                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                    }]`}
                     value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                     onChange={(e) => {
                       const newValue = e.target.value;
-                      const prevValue =
-                        values[CONSTANTS.FIELD_KEYS.ACTION][idx];
 
                       // Define initial row state based on newValue
                       const rowStates = {
@@ -829,56 +829,60 @@ const DistributedEvenForm = ({
                       name={`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
                     >
                       {({ field }) => (
-                        <input
-                          {...field}
-                          type="checkbox"
-                          checked={
-                            values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                          }
-                          className={
-                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                            CONSTANTS.USER_ACTIONS.EXCLUDE
-                              ? ""
-                              : "custom-checkbox"
-                          }
-                          disabled={
-                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                            CONSTANTS.USER_ACTIONS.EXCLUDE
-                          }
-                          ref={(input) => {
-                            if (input) {
-                              input.indeterminate =
-                                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                                CONSTANTS.USER_ACTIONS.EXCLUDE;
+                        <div className="checkbox-container">
+                          <input
+                            {...field}
+                            type="checkbox"
+                            checked={
+                              values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
                             }
-                          }}
-                          onChange={(e) => {
-                            const newLocked = e.target.checked;
-                            setFieldValue(
-                              `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                              newLocked
-                            );
-                            const updatedValues = {
-                              ...values,
-                              [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                                CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
-                              ].map((val, i) => (i === idx ? newLocked : val)),
-                              [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                                CONSTANTS.FIELD_KEYS.QUALIFIER
-                              ].map((q, i) =>
-                                i === idx ? (newLocked ? q : 0) : q
-                              ),
-                            };
-                            CumulativePercent.recalc(
-                              updatedValues,
-                              setFieldValue
-                            );
-                            updateDistribution(
-                              updatedValues,
-                              Number(values.appliedGlobalChunk)
-                            );
-                          }}
-                        />
+                            className={
+                              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                              CONSTANTS.USER_ACTIONS.ADD
+                                ? "custom-checkbox"
+                                : ""
+                            }
+                            disabled={
+                              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                              CONSTANTS.USER_ACTIONS.EXCLUDE
+                            }
+                            ref={(input) => {
+                              if (input) {
+                                input.indeterminate =
+                                  values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                                  CONSTANTS.USER_ACTIONS.EXCLUDE;
+                              }
+                            }}
+                            onChange={(e) => {
+                              const newLocked = e.target.checked;
+                              setFieldValue(
+                                `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                                newLocked
+                              );
+                              const updatedValues = {
+                                ...values,
+                                [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                                  CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                                ].map((val, i) =>
+                                  i === idx ? newLocked : val
+                                ),
+                                [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                                  CONSTANTS.FIELD_KEYS.QUALIFIER
+                                ].map((q, i) =>
+                                  i === idx ? (newLocked ? q : 0) : q
+                                ),
+                              };
+                              CumulativePercent.recalc(
+                                updatedValues,
+                                setFieldValue
+                              );
+                              updateDistribution(
+                                updatedValues,
+                                Number(values.appliedGlobalChunk)
+                              );
+                            }}
+                          />
+                        </div>
                       )}
                     </Field>
                   </div>
@@ -995,7 +999,9 @@ const NPerUserForm = ({
                 <td className="td">
                   <Field
                     as="select"
-                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                    }]`}
                     value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                     onChange={(e) => {
                       const newValue = e.target.value;

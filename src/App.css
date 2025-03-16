@@ -44,66 +44,69 @@
   min-width: 550px;
   white-space-collapse: break-spaces;
 }
-.custom-checkbox {
+.custom-checkbox:checked {
   appearance: none;
   -webkit-appearance: none;
-
-  -moz-appearance: none;
-  height: 1.136rem !important;
-  aspect-ratio: 1.08 !important;
+  aspect-ratio: unset !important;
   cursor: pointer;
   display: flex;
   padding: 0px;
-  border-radius: 3px;
   margin: unset;
+  border-width: 0px;
   border-color: light-dark(rgb(110, 110, 110), rgb(122, 122, 122));
 }
 
 .custom-checkbox:focus {
   outline: none;
   border-color: light-dark(rgb(118, 118, 118), rgb(133, 133, 133)) !important;
-  border-radius: 3px;
 }
 
-.custom-checkbox::before {
+.custom-checkbox:checked:before {
   content: "";
-  width: 100%;
-  aspect-ratio: 1;
-  background-color: light-dark(#fff, #3b3b3b);
-  border-radius: 3px;
-  border-width: unset;
+  border-radius: 0.185em;
+  width: 1.184rem;
+  height: 1.17rem;
+  /* background-color: light-dark(#fff, #3b3b3b); */
+  outline: none;
 }
 
-.custom-checkbox:hover {
+.custom-checkbox:checked:hover {
   border-color: light-dark(rgb(80, 80, 80), rgb(153, 153, 153));
 }
 
 .custom-checkbox:checked {
   border: unset !important;
+  height: 1.19rem !important;
+}
+
+.custom-checkbox {
+  appearance: checkbox;
+  -webkit-appearance: checkbox;
 }
 
 .custom-checkbox:checked::before {
   background-color: light-dark(#007bff, #99c8ff);
   border-color: light-dark(rgb(118, 118, 118), #99c8ff);
-  box-shadow: none;
 }
 
 :root {
-  --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+  --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 10V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
 
-  --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 11V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
+  --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 10V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
 }
 
 .custom-checkbox:checked::after {
   content: "";
   position: absolute;
-  width: 20px;
+  left: 7%;
+  width: 0.87rem;
   aspect-ratio: 1;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  margin: 0px 0px 0px 1px;
+  margin: 0px 0px 0px 0px;
   background-image: var(--checkbox-svg-dark);
+  height: 100%;
 }
 
 @media (prefers-color-scheme: light) {
@@ -132,6 +135,14 @@ div:has(> .qualifierInputContainer) {
   flex-wrap: nowrap;
   white-space: nowrap;
 }
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  border-radius: 0.185em;
+  overflow: hidden;
+  width: 1.13rem !important;
+  height: 1rem;
+}
 .qualifierInputContainer {
   width: calc(100% - 21px);
   display: flex;
@@ -139,15 +150,18 @@ div:has(> .qualifierInputContainer) {
   align-items: center;
 }
 input[type="checkbox"] {
-  height: 1.27rem !important;
-  aspect-ratio: 1;
+  height: 1.2rem !important;
   position: relative;
 }
 input[type="checkbox"]:focus-visible {
   outline: none;
 }
-input[name^="qualifierLocked"] {
+input[name*="qualifierLocked"] {
   margin: unset;
+  aspect-ratio: 1;
+  background-color: unset;
+  width: -webkit-fill-available;
+  height: 100% !important;
 }
 div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]) *,
 div:has(> [name^="qualifier"][disabled]) {
@@ -192,19 +206,77 @@ input[name*="exclude"][readonly] {
   cursor: not-allowed;
 }
 
+tr:has(select[name*="action"]) > td {
+  background-color: unset;
+}
+@property --myColor1 {
+  syntax: "<color>";
+  initial-value: transparent;
+  inherits: false;
+}
+
+@property --myColor2 {
+  syntax: "<color>";
+  initial-value: transparent;
+  inherits: false;
+}
+
+@property --myPosition {
+  syntax: "<length>";
+  initial-value: 200px;
+  inherits: false;
+}
+
+/* Apply base gradient setup to all `action` rows */
+tr:has(select[name*="action"]) {
+  --myPosition: -210px;
+  transition: --myPosition 0.3s ease, --myColor1 0.2s ease-in,
+    --myColor2 0.2s ease-in;
+  background: repeating-linear-gradient(
+    320deg,
+    var(--myColor1),
+    var(--myColor1) 26px,
+    var(--myColor2) 26px,
+    var(--myColor2) 39px
+  );
+  background-size: 991px 91px;
+  background-position: var(--myPosition) 0px;
+}
+
 /* Dark mode styles */
 @media (prefers-color-scheme: dark) {
+  /* Subtract: Dark Red Gradient */
   tr:has(select[name*="action"][name*="subtract"]) {
-    background-color: rgb(58, 48, 48);
+    --myColor1: rgba(120, 70, 70, 0.3); /* Very soft faded red */
+    --myColor2: rgba(90, 50, 50, 0.3); /* Almost like a reddish mist */
+    --myPosition: -190px;
+  }
+
+  /* Exclude: Dark Gray Gradient */
+  tr:has(select[name*="action"][name*="exclude"]) {
+    --myColor1: #3a3a3a75;
+    --myColor2: #29292975;
+    --myPosition: -190px;
   }
 }
 
 /* Light mode styles */
 @media (prefers-color-scheme: light) {
+  /* Subtract: Light Red Gradient */
   tr:has(select[name*="action"][name*="subtract"]) {
-    background-color: rgb(220 195 195);
+    --myColor1: rgba(220, 150, 150, 0.6);
+    --myColor2: rgba(180, 100, 100, 0.6);
+    --myPosition: -190px;
+  }
+
+  /* Exclude: Light Gray Gradient */
+  tr:has(select[name*="action"][name*="exclude"]) {
+    --myColor1: #d7d7d775;
+    --myColor2: #b1b1b175;
+    --myPosition: -190px;
   }
 }
+
 thead > tr {
   display: contents;
 }
@@ -394,6 +466,10 @@ table {
   }
   input:focus,
   select:focus {
+    border-color: #ff8c00;
+    box-shadow: 0 0 5px rgba(255, 140, 0, 0.5);
+  }
+  .checkbox-container:has(> input:focus, > select:focus) {
     border-color: #ff8c00;
     box-shadow: 0 0 5px rgba(255, 140, 0, 0.5);
   }

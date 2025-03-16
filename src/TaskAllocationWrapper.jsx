@@ -5,7 +5,7 @@ import TaskAllocationForm from "./TaskAllocation";
 
 // In-memory store that persists across updates.
 let taskStore = {
-  assignableTasks: 20,
+  assignableTasks: 120,
   users: [
     { id: 1, name: "Alice", tasks: 3 },
     { id: 2, name: "Bob", tasks: 5 },
