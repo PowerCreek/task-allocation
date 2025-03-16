@@ -174,9 +174,7 @@ const ControlledToAssignInput = ({
   isExcluded,
 }) => {
   // If the action is excluded, show a read-only text field with "Indeterminate"
-  if (isExcluded) {
-    return <input type="number" value="0" readOnly style={style} />;
-  }
+
   const [internalValue, setInternalValue] = useState(field.value);
   useEffect(() => {
     setInternalValue(field.value);
@@ -189,7 +187,7 @@ const ControlledToAssignInput = ({
       type="number"
       {...field}
       name={field.name}
-      value={internalValue}
+      value={isExcluded ? "0" : internalValue}
       onChange={handleChange}
       readOnly={readOnly}
       style={style}
@@ -212,9 +210,9 @@ const NormalAllocationForm = ({
       <thead>
         <tr>
           <th className="th">User</th>
-          <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+          <th className="th ws-wrap-down">{FIELD_NAMES.CURRENT_TASKS}</th>
           <th className="th">{FIELD_NAMES.ACTION}</th>
-          <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+          <th className="th ws-wrap-down">{FIELD_NAMES.CHANGE_AMOUNT}</th>
           <th className="th">{FIELD_NAMES.REMAINING}</th>
           <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
         </tr>
@@ -256,7 +254,9 @@ const NormalAllocationForm = ({
               <td className="td">
                 <Field
                   as="select"
-                  name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                  name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                    values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                  }]`}
                   value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                   onChange={(e) => {
                     const newValue = e.target.value;
@@ -291,11 +291,6 @@ const NormalAllocationForm = ({
                   component={ControlledToAssignInput}
                   index={idx}
                   onValidatedChange={handleFieldChange}
-                  // Pass the isExcluded prop based on action value
-                  isExcluded={
-                    values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                    CONSTANTS.USER_ACTIONS.EXCLUDE
-                  }
                   readOnly={false}
                 />
               </td>
@@ -633,10 +628,10 @@ const DistributedEvenForm = ({
         <thead>
           <tr>
             <th className="th">User</th>
-            <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+            <th className="th ws-wrap-down">{FIELD_NAMES.CURRENT_TASKS}</th>
             <th className="th">{FIELD_NAMES.ACTION}</th>
             <th className="th">{FIELD_NAMES.PERCENT}</th>
-            <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+            <th className="th ws-wrap-down">{FIELD_NAMES.CHANGE_AMOUNT}</th>
             <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
           </tr>
         </thead>
@@ -709,104 +704,76 @@ const DistributedEvenForm = ({
                       const prevValue =
                         values[CONSTANTS.FIELD_KEYS.ACTION][idx];
 
+                      // Define initial row state based on newValue
+                      const rowStates = {
+                        [CONSTANTS.USER_ACTIONS.EXCLUDE]: {
+                          action: CONSTANTS.USER_ACTIONS.EXCLUDE,
+                          toAssign: 0,
+                          qualifier: 0,
+                          qualifierLocked: true,
+                        },
+                        [CONSTANTS.USER_ACTIONS.ADD]: {
+                          action: CONSTANTS.USER_ACTIONS.ADD,
+                          toAssign: 0,
+                          qualifier: 0,
+                          qualifierLocked: false,
+                        },
+                      };
+
+                      const initialRowState = rowStates[newValue] || {};
+
+                      // Apply initial row state
                       setFieldValue(
                         `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
                         newValue
                       );
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                        initialRowState.toAssign
+                      );
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
+                        initialRowState.qualifier
+                      );
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                        initialRowState.qualifierLocked
+                      );
 
-                      if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
-                        // When switching to EXCLUDE, set all relevant fields to 0
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                          0
-                        );
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
-                          0
-                        );
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                          false
-                        );
+                      // Update values for recalculating distribution
+                      const updatedValues = {
+                        ...values,
+                        [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                          CONSTANTS.FIELD_KEYS.ACTION
+                        ].map((act, i) =>
+                          i === idx ? initialRowState.action : act
+                        ),
+                        [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: values[
+                          CONSTANTS.FIELD_KEYS.TO_ASSIGN
+                        ].map((assign, i) =>
+                          i === idx ? initialRowState.toAssign : assign
+                        ),
+                        [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                          CONSTANTS.FIELD_KEYS.QUALIFIER
+                        ].map((q, i) =>
+                          i === idx ? initialRowState.qualifier : q
+                        ),
+                        [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                          CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                        ].map((locked, i) =>
+                          i === idx ? initialRowState.qualifierLocked : locked
+                        ),
+                      };
 
-                        // Trigger redistribution
-                        const updatedValues = {
-                          ...values,
-                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
-                            CONSTANTS.FIELD_KEYS.ACTION
-                          ].map((act, i) =>
-                            i === idx ? CONSTANTS.USER_ACTIONS.EXCLUDE : act
-                          ),
-                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                            CONSTANTS.FIELD_KEYS.QUALIFIER
-                          ].map((q, i) => (i === idx ? 0 : q)),
-                        };
+                      // Recalculate everything like a fresh state
+                      CumulativePercent.recalc(updatedValues, setFieldValue);
 
-                        CumulativePercent.recalc(updatedValues, setFieldValue);
+                      // If global allocation was applied, reapply it
+                      if (Number(values.appliedGlobalChunk) > 0) {
                         updateDistribution(
                           updatedValues,
                           Number(values.appliedGlobalChunk)
                         );
-                      } else if (
-                        prevValue === CONSTANTS.USER_ACTIONS.EXCLUDE &&
-                        newValue === CONSTANTS.USER_ACTIONS.ADD
-                      ) {
-                        // When switching from EXCLUDE to ADD, reset to the initial mount state
-                        const initialRowState = {
-                          action: CONSTANTS.USER_ACTIONS.ADD, // Default action
-                          toAssign: 0, // No tasks assigned initially
-                          qualifier: 0, // Default percentage
-                          qualifierLocked: false, // Not locked initially
-                        };
-
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                          initialRowState.toAssign
-                        );
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
-                          initialRowState.qualifier
-                        );
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                          initialRowState.qualifierLocked
-                        );
-
-                        // Update values like resetting the row
-                        const updatedValues = {
-                          ...values,
-                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
-                            CONSTANTS.FIELD_KEYS.ACTION
-                          ].map((act, i) =>
-                            i === idx ? initialRowState.action : act
-                          ),
-                          [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: values[
-                            CONSTANTS.FIELD_KEYS.TO_ASSIGN
-                          ].map((assign, i) =>
-                            i === idx ? initialRowState.toAssign : assign
-                          ),
-                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                            CONSTANTS.FIELD_KEYS.QUALIFIER
-                          ].map((q, i) =>
-                            i === idx ? initialRowState.qualifier : q
-                          ),
-                          [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                            CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
-                          ].map((locked, i) =>
-                            i === idx ? initialRowState.qualifierLocked : locked
-                          ),
-                        };
-
-                        // Recalculate everything like a fresh state
-                        CumulativePercent.recalc(updatedValues, setFieldValue);
-
-                        // If global allocation was applied, reapply it
-                        if (Number(values.appliedGlobalChunk) > 0) {
-                          updateDistribution(
-                            updatedValues,
-                            Number(values.appliedGlobalChunk)
-                          );
-                        }
                       }
                     }}
                     disabled={disableSelect(
@@ -919,15 +886,19 @@ const DistributedEvenForm = ({
 
                 <td className="td">
                   <Field
-                    name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
-                    component={ControlledToAssignInput}
-                    index={idx}
-                    onValidatedChange={handleFieldChange}
-                    // Pass isExcluded so the field shows "Indeterminate"
+                    name={
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                      CONSTANTS.USER_ACTIONS.EXCLUDE
+                        ? `exclude[${idx}]`
+                        : `toAssign[${idx}]`
+                    }
                     isExcluded={
                       values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
                       CONSTANTS.USER_ACTIONS.EXCLUDE
                     }
+                    component={ControlledToAssignInput}
+                    index={idx}
+                    onValidatedChange={handleFieldChange}
                     readOnly={true}
                   />
                 </td>
@@ -998,9 +969,9 @@ const NPerUserForm = ({
         <thead>
           <tr>
             <th className="th">User</th>
-            <th className="th">{FIELD_NAMES.CURRENT_TASKS}</th>
+            <th className="th ws-wrap-down">{FIELD_NAMES.CURRENT_TASKS}</th>
             <th className="th">{FIELD_NAMES.ACTION}</th>
-            <th className="th">{FIELD_NAMES.CHANGE_AMOUNT}</th>
+            <th className="th ws-wrap-down">{FIELD_NAMES.CHANGE_AMOUNT}</th>
             <th className="th">{FIELD_NAMES.PENDING_TOTAL}</th>
           </tr>
         </thead>
@@ -1032,44 +1003,47 @@ const NPerUserForm = ({
                         `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
                         newValue
                       );
-                      const updatedValues = {
-                        ...values,
-                        [CONSTANTS.FIELD_KEYS.ACTION]: values[
-                          CONSTANTS.FIELD_KEYS.ACTION
-                        ].map((act, i) => (i === idx ? newValue : act)),
-                      };
-                      // Always use the proxy value for recalculations.
-                      if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                          0
-                        );
-                        recalcNPerUser(
-                          updatedValues,
-                          setFieldValue,
-                          baseAssignable,
-                          appliedPerUserCap
-                        );
-                      } else if (newValue === CONSTANTS.USER_ACTIONS.ADD) {
-                        if (appliedPerUserCap === 0) {
-                          let newArr = [
-                            ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
-                          ];
-                          newArr[idx] = 0;
-                          setFieldValue(CONSTANTS.FIELD_KEYS.TO_ASSIGN, newArr);
-                        } else {
-                          updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN] =
-                            applyGlobalAddLogic(
-                              updatedValues,
+
+                      // Lookup table for handling different user actions
+                      const actionHandlers = {
+                        [CONSTANTS.USER_ACTIONS.EXCLUDE]: () => {
+                          setFieldValue(
+                            `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                            0
+                          );
+                          recalcNPerUser(
+                            values,
+                            setFieldValue,
+                            baseAssignable,
+                            appliedPerUserCap
+                          );
+                        },
+                        [CONSTANTS.USER_ACTIONS.ADD]: () => {
+                          if (appliedPerUserCap === 0) {
+                            const newArr = [
+                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
+                            ];
+                            newArr[idx] = 0;
+                            setFieldValue(
+                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                              newArr
+                            );
+                          } else {
+                            const updatedToAssign = applyGlobalAddLogic(
+                              values,
                               baseAssignable,
                               appliedPerUserCap
                             );
-                          setFieldValue(
-                            CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                            updatedValues[CONSTANTS.FIELD_KEYS.TO_ASSIGN]
-                          );
-                        }
-                      }
+                            setFieldValue(
+                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                              updatedToAssign
+                            );
+                          }
+                        },
+                      };
+
+                      // Execute the corresponding function for the selected action
+                      actionHandlers[newValue]?.();
                     }}
                     disabled={disableSelect(
                       values,
@@ -1092,6 +1066,10 @@ const NPerUserForm = ({
                       CONSTANTS.USER_ACTIONS.EXCLUDE
                         ? `exclude[${idx}]`
                         : `toAssign[${idx}]`
+                    }
+                    isExcluded={
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                      CONSTANTS.USER_ACTIONS.EXCLUDE
                     }
                     component={ControlledToAssignInput}
                     index={idx}
