@@ -41,7 +41,7 @@
 }
 
 .tasks table {
-  min-width: 550px;
+  min-width: 580px;
   white-space-collapse: break-spaces;
 }
 .custom-checkbox:checked {
@@ -224,14 +224,14 @@ tr:has(select[name*="action"]) > td {
 
 @property --myPosition {
   syntax: "<length>";
-  initial-value: 200px;
+  initial-value: 191px;
   inherits: false;
 }
 
 /* Apply base gradient setup to all `action` rows */
 tr:has(select[name*="action"]) {
-  --myPosition: -210px;
-  transition: --myPosition 0.3s ease, --myColor1 0.2s ease-in,
+  --myPosition: 141px;
+  transition: --myPosition 0.3s ease-in-out, --myColor1 0.2s ease-in,
     --myColor2 0.2s ease-in;
   background: repeating-linear-gradient(
     320deg,
@@ -240,24 +240,24 @@ tr:has(select[name*="action"]) {
     var(--myColor2) 26px,
     var(--myColor2) 39px
   );
-  background-size: 991px 91px;
-  background-position: var(--myPosition) 0px;
+  background-size: 991px 191px;
+  background-position: 0px var(--myPosition);
 }
 
 /* 🌙 Dark mode styles - SOFT GOLDEN TONES */
 @media (prefers-color-scheme: dark) {
   /* Subtract: Soft golden mustard gradient */
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgba(180, 140, 50, 0.3); /* Muted golden yellow */
-    --myColor2: rgba(140, 100, 40, 0.3); /* Slightly desaturated */
-    --myPosition: -190px;
+    --myColor1: rgb(255 177 0 / 16%);
+    --myColor2: rgb(157 111 41 / 16%);
+    --myPosition: 191px;
   }
 
   /* Exclude: Soft beige-yellow gradient */
   tr:has(select[name*="action"][name*="exclude"]) {
     --myColor1: rgba(130, 110, 60, 0.25); /* Soft brownish-yellow */
     --myColor2: rgba(100, 80, 50, 0.25); /* Very muted */
-    --myPosition: -190px;
+    --myPosition: 191px;
   }
 }
 
@@ -265,16 +265,16 @@ tr:has(select[name*="action"]) {
 @media (prefers-color-scheme: light) {
   /* Subtract: Light golden yellow */
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgba(255, 220, 120, 0.4); /* Soft pastel yellow */
-    --myColor2: rgba(230, 190, 90, 0.4); /* Slightly deeper */
-    --myPosition: -190px;
+    --myColor1: rgb(255 177 0 / 16%);
+    --myColor2: rgb(157 111 41 / 16%);
+    --myPosition: 191px;
   }
 
   /* Exclude: Muted sandy yellow */
   tr:has(select[name*="action"][name*="exclude"]) {
     --myColor1: rgba(240, 220, 160, 0.35); /* Warm beige-yellow */
     --myColor2: rgba(210, 180, 120, 0.35); /* Softer, warm neutral */
-    --myPosition: -190px;
+    --myPosition: 191px;
   }
 }
 

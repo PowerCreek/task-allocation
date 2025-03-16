@@ -202,6 +202,7 @@ const NormalAllocationForm = ({
   baseAssignable,
   users,
   handleFieldChange,
+  isLoaded,
 }) => {
   const { values, setFieldValue } = formikProps;
   const totals = calcTotals(values);
@@ -218,101 +219,110 @@ const NormalAllocationForm = ({
         </tr>
       </thead>
       <tbody>
-        {users.map((user, idx) => {
-          const currentVal = Number(
-            values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
-          );
-          let remaining = 0;
-          if (
-            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-            CONSTANTS.USER_ACTIONS.ADD
-          ) {
-            const poolForAddition = baseAssignable;
-            const addMax = Math.max(
-              0,
-              poolForAddition - (totals.totalAdded - currentVal)
+        {" "}
+        {(!isLoaded && (
+          <tr>
+            <td colSpan={67} className="td">
+              Loading...
+            </td>
+          </tr>
+        )) ||
+          users.map((user, idx) => {
+            const currentVal = Number(
+              values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
             );
-            remaining = Math.max(0, addMax - currentVal);
-          } else if (
-            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-            CONSTANTS.USER_ACTIONS.SUBTRACT
-          ) {
-            remaining = user.tasks - currentVal;
-          }
-          const pendingTotal =
-            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-            CONSTANTS.USER_ACTIONS.ADD
-              ? user.tasks + currentVal
-              : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                CONSTANTS.USER_ACTIONS.SUBTRACT
-              ? Math.max(0, user.tasks - currentVal)
-              : user.tasks;
-          return (
-            <tr key={user.id}>
-              <td className="td">{user.name}</td>
-              <td className="td">{user.tasks}</td>
-              <td className="td">
-                <Field
-                  as="select"
-                  name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
-                    values[CONSTANTS.FIELD_KEYS.ACTION][idx]
-                  }]`}
-                  value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    setFieldValue(
-                      `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
-                      newValue
-                    );
-                    if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+            let remaining = 0;
+            if (
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
+            ) {
+              const poolForAddition = baseAssignable;
+              const addMax = Math.max(
+                0,
+                poolForAddition - (totals.totalAdded - currentVal)
+              );
+              remaining = Math.max(0, addMax - currentVal);
+            } else if (
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.SUBTRACT
+            ) {
+              remaining = user.tasks - currentVal;
+            }
+            const pendingTotal =
+              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+              CONSTANTS.USER_ACTIONS.ADD
+                ? user.tasks + currentVal
+                : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                  CONSTANTS.USER_ACTIONS.SUBTRACT
+                ? Math.max(0, user.tasks - currentVal)
+                : user.tasks;
+            return (
+              <tr key={user.id}>
+                <td className="td">{user.name}</td>
+                <td className="td">{user.tasks}</td>
+                <td className="td">
+                  <Field
+                    as="select"
+                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                      values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                    }]`}
+                    value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setFieldValue(
+                        `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                        newValue
+                      );
+                      if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                          0
+                        );
+                      }
+                    }}
+                    disabled={disableSelect(
+                      values,
+                      idx,
+                      totals,
+                      baseAssignable,
+                      user.tasks
+                    )}
+                  >
+                    <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                    <option value={CONSTANTS.USER_ACTIONS.SUBTRACT}>
+                      Reassign
+                    </option>
+                  </Field>
+                </td>
+                <td className="td">
+                  <Field
+                    name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
+                    component={ControlledToAssignInput}
+                    index={idx}
+                    onValidatedChange={handleFieldChange}
+                    readOnly={false}
+                  />
+                </td>
+                <td className="td">
+                  <button
+                    type="button"
+                    onClick={() =>
                       setFieldValue(
                         `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                        0
-                      );
+                        Number(
+                          values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
+                        ) + remaining
+                      )
                     }
-                  }}
-                  disabled={disableSelect(
-                    values,
-                    idx,
-                    totals,
-                    baseAssignable,
-                    user.tasks
-                  )}
-                >
-                  <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
-                  <option value={CONSTANTS.USER_ACTIONS.SUBTRACT}>
-                    Reassign
-                  </option>
-                </Field>
-              </td>
-              <td className="td">
-                <Field
-                  name={`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`}
-                  component={ControlledToAssignInput}
-                  index={idx}
-                  onValidatedChange={handleFieldChange}
-                  readOnly={false}
-                />
-              </td>
-              <td className="td">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFieldValue(
-                      `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                      Number(values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0) +
-                        remaining
-                    )
-                  }
-                  className="button number"
-                >
-                  {remaining}
-                </button>
-              </td>
-              <td className="td">{pendingTotal}</td>
-            </tr>
-          );
-        })}
+                    className="button number"
+                  >
+                    {remaining}
+                  </button>
+                </td>
+                <td className="td">{pendingTotal}</td>
+              </tr>
+            );
+          })}
       </tbody>
     </table>
   );
@@ -328,6 +338,7 @@ const DistributedEvenForm = ({
   baseAssignable,
   users,
   handleFieldChange,
+  isLoaded,
 }) => {
   const { values, setFieldValue } = formikProps;
 
@@ -703,280 +714,290 @@ const DistributedEvenForm = ({
           </tr>
         </thead>
         <tbody>
-          {users.map((user, idx) => {
-            const currentVal = Number(
-              values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
-            );
-            let remaining = 0;
-            if (
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.ADD
-            ) {
-              const poolForAddition = Number(values.appliedGlobalChunk);
-              const addMax = Math.max(
-                0,
-                poolForAddition - (totals.totalAdded - currentVal)
+          {(!isLoaded && (
+            <tr>
+              <td colSpan={67} className="td">
+                Loading...
+              </td>
+            </tr>
+          )) ||
+            users.map((user, idx) => {
+              const currentVal = Number(
+                values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
               );
-              remaining = Math.max(0, addMax - currentVal);
-            } else if (
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.SUBTRACT
-            ) {
-              remaining = user.tasks - currentVal;
-            }
-            const pendingTotal =
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.ADD
-                ? user.tasks + currentVal
+              let remaining = 0;
+              if (
+                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.ADD
+              ) {
+                const poolForAddition = Number(values.appliedGlobalChunk);
+                const addMax = Math.max(
+                  0,
+                  poolForAddition - (totals.totalAdded - currentVal)
+                );
+                remaining = Math.max(0, addMax - currentVal);
+              } else if (
+                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.SUBTRACT
+              ) {
+                remaining = user.tasks - currentVal;
+              }
+              const pendingTotal =
+                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.ADD
+                  ? user.tasks + currentVal
+                  : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                    CONSTANTS.USER_ACTIONS.SUBTRACT
+                  ? Math.max(0, user.tasks - currentVal)
+                  : user.tasks;
+
+              const qualifierValue =
+                Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) || 0;
+              const totalExplicitSum = values[
+                CONSTANTS.FIELD_KEYS.QUALIFIER
+              ].reduce(
+                (sum, q, i) =>
+                  values[CONSTANTS.FIELD_KEYS.ACTION][i] !==
+                    CONSTANTS.USER_ACTIONS.EXCLUDE &&
+                  values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][i]
+                    ? sum + Number(q)
+                    : sum,
+                0
+              );
+              const remPercentVal = Math.max(0, 100 - totalExplicitSum);
+              const computedValue = values[
+                CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+              ][idx]
+                ? qualifierValue
                 : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                  CONSTANTS.USER_ACTIONS.SUBTRACT
-                ? Math.max(0, user.tasks - currentVal)
-                : user.tasks;
-
-            const qualifierValue =
-              Number(values[CONSTANTS.FIELD_KEYS.QUALIFIER][idx]) || 0;
-            const totalExplicitSum = values[
-              CONSTANTS.FIELD_KEYS.QUALIFIER
-            ].reduce(
-              (sum, q, i) =>
-                values[CONSTANTS.FIELD_KEYS.ACTION][i] !==
-                  CONSTANTS.USER_ACTIONS.EXCLUDE &&
-                values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][i]
-                  ? sum + Number(q)
-                  : sum,
-              0
-            );
-            const remPercentVal = Math.max(0, 100 - totalExplicitSum);
-            const computedValue = values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
-              idx
-            ]
-              ? qualifierValue
-              : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                CONSTANTS.USER_ACTIONS.EXCLUDE
-              ? 0
-              : qualifierValue < 1 && remPercentVal > 0
-              ? ""
-              : qualifierValue;
-            return (
-              <tr key={user.id}>
-                <td className="td">{user.name}</td>
-                <td className="td">{user.tasks}</td>
-                <td className="td">
-                  <Field
-                    as="select"
-                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx]
-                    }]`}
-                    value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
-                    onChange={(e) => {
-                      const newValue = e.target.value;
-
-                      // Define initial row state based on newValue
-                      const rowStates = {
-                        [CONSTANTS.USER_ACTIONS.EXCLUDE]: {
-                          action: CONSTANTS.USER_ACTIONS.EXCLUDE,
-                          toAssign: 0,
-                          qualifier: 0,
-                          qualifierLocked: true,
-                        },
-                        [CONSTANTS.USER_ACTIONS.ADD]: {
-                          action: CONSTANTS.USER_ACTIONS.ADD,
-                          toAssign: 0,
-                          qualifier: 0,
-                          qualifierLocked: false,
-                        },
-                      };
-
-                      const initialRowState = rowStates[newValue] || {};
-
-                      // Apply initial row state
-                      setFieldValue(
-                        `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
-                        newValue
-                      );
-                      setFieldValue(
-                        `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                        initialRowState.toAssign
-                      );
-                      setFieldValue(
-                        `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
-                        initialRowState.qualifier
-                      );
-                      setFieldValue(
-                        `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                        initialRowState.qualifierLocked
-                      );
-
-                      // Update values for recalculating distribution
-                      const updatedValues = {
-                        ...values,
-                        [CONSTANTS.FIELD_KEYS.ACTION]: values[
-                          CONSTANTS.FIELD_KEYS.ACTION
-                        ].map((act, i) =>
-                          i === idx ? initialRowState.action : act
-                        ),
-                        [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: values[
-                          CONSTANTS.FIELD_KEYS.TO_ASSIGN
-                        ].map((assign, i) =>
-                          i === idx ? initialRowState.toAssign : assign
-                        ),
-                        [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                          CONSTANTS.FIELD_KEYS.QUALIFIER
-                        ].map((q, i) =>
-                          i === idx ? initialRowState.qualifier : q
-                        ),
-                        [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                          CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
-                        ].map((locked, i) =>
-                          i === idx ? initialRowState.qualifierLocked : locked
-                        ),
-                      };
-
-                      // Recalculate everything like a fresh state
-                      CumulativePercent.recalc(updatedValues, setFieldValue);
-
-                      // If global allocation was applied, reapply it
-                      if (Number(values.appliedGlobalChunk) > 0) {
-                        updateDistribution(
-                          updatedValues,
-                          Number(values.appliedGlobalChunk)
-                        );
-                      }
-                    }}
-                    disabled={disableSelect(
-                      values,
-                      idx,
-                      totals,
-                      baseAssignable,
-                      user.tasks
-                    )}
-                  >
-                    <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
-                    <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
-                      Exclude
-                    </option>
-                  </Field>
-                </td>
-                <td className="td">
-                  <div>
-                    <div className="qualifierInputContainer">
-                      <Field
-                        name={`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`}
-                        type="number"
-                        disabled={
-                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                          CONSTANTS.USER_ACTIONS.EXCLUDE
-                        }
-                        onChange={(e) => handleQualifierChange(e, idx)}
-                        value={
-                          values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                            ? computedValue
-                            : ""
-                        }
-                        placeholder={
-                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                          CONSTANTS.USER_ACTIONS.EXCLUDE
-                            ? "0"
-                            : !values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
-                                idx
-                              ]
-                            ? qualifierValue < 1 && remPercentVal > 0
-                              ? "0<"
-                              : computedValue
-                            : ""
-                        }
-                        readOnly={
-                          values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                          CONSTANTS.USER_ACTIONS.EXCLUDE
-                        }
-                      />
-                    </div>
-
+                  CONSTANTS.USER_ACTIONS.EXCLUDE
+                ? 0
+                : qualifierValue < 1 && remPercentVal > 0
+                ? ""
+                : qualifierValue;
+              return (
+                <tr key={user.id}>
+                  <td className="td">{user.name}</td>
+                  <td className="td">{user.tasks}</td>
+                  <td className="td">
                     <Field
-                      name={`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
-                    >
-                      {({ field }) => (
-                        <div className="checkbox-container">
-                          <input
-                            {...field}
-                            type="checkbox"
-                            checked={
-                              values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
-                            }
-                            className={
-                              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                              CONSTANTS.USER_ACTIONS.ADD
-                                ? "custom-checkbox"
-                                : ""
-                            }
-                            disabled={
-                              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                              CONSTANTS.USER_ACTIONS.EXCLUDE
-                            }
-                            ref={(input) => {
-                              if (input) {
-                                input.indeterminate =
-                                  values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                                  CONSTANTS.USER_ACTIONS.EXCLUDE;
-                              }
-                            }}
-                            onChange={(e) => {
-                              const newLocked = e.target.checked;
-                              setFieldValue(
-                                `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
-                                newLocked
-                              );
-                              const updatedValues = {
-                                ...values,
-                                [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
-                                  CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
-                                ].map((val, i) =>
-                                  i === idx ? newLocked : val
-                                ),
-                                [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
-                                  CONSTANTS.FIELD_KEYS.QUALIFIER
-                                ].map((q, i) =>
-                                  i === idx ? (newLocked ? q : 0) : q
-                                ),
-                              };
-                              CumulativePercent.recalc(
-                                updatedValues,
-                                setFieldValue
-                              );
-                              updateDistribution(
-                                updatedValues,
-                                Number(values.appliedGlobalChunk)
-                              );
-                            }}
-                          />
-                        </div>
-                      )}
-                    </Field>
-                  </div>
-                </td>
+                      as="select"
+                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                      }]`}
+                      value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
 
-                <td className="td">
-                  <Field
-                    name={
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                      CONSTANTS.USER_ACTIONS.EXCLUDE
-                        ? `exclude[${idx}]`
-                        : `toAssign[${idx}]`
-                    }
-                    isExcluded={
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                      CONSTANTS.USER_ACTIONS.EXCLUDE
-                    }
-                    component={ControlledToAssignInput}
-                    index={idx}
-                    onValidatedChange={handleFieldChange}
-                    readOnly={true}
-                  />
-                </td>
-                <td className="td">{pendingTotal}</td>
-              </tr>
-            );
-          })}
+                        // Define initial row state based on newValue
+                        const rowStates = {
+                          [CONSTANTS.USER_ACTIONS.EXCLUDE]: {
+                            action: CONSTANTS.USER_ACTIONS.EXCLUDE,
+                            toAssign: 0,
+                            qualifier: 0,
+                            qualifierLocked: true,
+                          },
+                          [CONSTANTS.USER_ACTIONS.ADD]: {
+                            action: CONSTANTS.USER_ACTIONS.ADD,
+                            toAssign: 0,
+                            qualifier: 0,
+                            qualifierLocked: false,
+                          },
+                        };
+
+                        const initialRowState = rowStates[newValue] || {};
+
+                        // Apply initial row state
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                          newValue
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                          initialRowState.toAssign
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`,
+                          initialRowState.qualifier
+                        );
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                          initialRowState.qualifierLocked
+                        );
+
+                        // Update values for recalculating distribution
+                        const updatedValues = {
+                          ...values,
+                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                            CONSTANTS.FIELD_KEYS.ACTION
+                          ].map((act, i) =>
+                            i === idx ? initialRowState.action : act
+                          ),
+                          [CONSTANTS.FIELD_KEYS.TO_ASSIGN]: values[
+                            CONSTANTS.FIELD_KEYS.TO_ASSIGN
+                          ].map((assign, i) =>
+                            i === idx ? initialRowState.toAssign : assign
+                          ),
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER
+                          ].map((q, i) =>
+                            i === idx ? initialRowState.qualifier : q
+                          ),
+                          [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]: values[
+                            CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                          ].map((locked, i) =>
+                            i === idx ? initialRowState.qualifierLocked : locked
+                          ),
+                        };
+
+                        // Recalculate everything like a fresh state
+                        CumulativePercent.recalc(updatedValues, setFieldValue);
+
+                        // If global allocation was applied, reapply it
+                        if (Number(values.appliedGlobalChunk) > 0) {
+                          updateDistribution(
+                            updatedValues,
+                            Number(values.appliedGlobalChunk)
+                          );
+                        }
+                      }}
+                      disabled={disableSelect(
+                        values,
+                        idx,
+                        totals,
+                        baseAssignable,
+                        user.tasks
+                      )}
+                    >
+                      <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                      <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
+                        Exclude
+                      </option>
+                    </Field>
+                  </td>
+                  <td className="td">
+                    <div>
+                      <div className="qualifierInputContainer">
+                        <Field
+                          name={`${CONSTANTS.FIELD_KEYS.QUALIFIER}[${idx}]`}
+                          type="number"
+                          disabled={
+                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                            CONSTANTS.USER_ACTIONS.EXCLUDE
+                          }
+                          onChange={(e) => handleQualifierChange(e, idx)}
+                          value={
+                            values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][idx]
+                              ? computedValue
+                              : ""
+                          }
+                          placeholder={
+                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                            CONSTANTS.USER_ACTIONS.EXCLUDE
+                              ? "0"
+                              : !values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
+                                  idx
+                                ]
+                              ? qualifierValue < 1 && remPercentVal > 0
+                                ? "0<"
+                                : computedValue
+                              : ""
+                          }
+                          readOnly={
+                            values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                            CONSTANTS.USER_ACTIONS.EXCLUDE
+                          }
+                        />
+                      </div>
+
+                      <Field
+                        name={`${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`}
+                      >
+                        {({ field }) => (
+                          <div className="checkbox-container">
+                            <input
+                              {...field}
+                              type="checkbox"
+                              checked={
+                                values[CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED][
+                                  idx
+                                ]
+                              }
+                              className={
+                                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                                CONSTANTS.USER_ACTIONS.ADD
+                                  ? "custom-checkbox"
+                                  : ""
+                              }
+                              disabled={
+                                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                                CONSTANTS.USER_ACTIONS.EXCLUDE
+                              }
+                              ref={(input) => {
+                                if (input) {
+                                  input.indeterminate =
+                                    values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                                    CONSTANTS.USER_ACTIONS.EXCLUDE;
+                                }
+                              }}
+                              onChange={(e) => {
+                                const newLocked = e.target.checked;
+                                setFieldValue(
+                                  `${CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED}[${idx}]`,
+                                  newLocked
+                                );
+                                const updatedValues = {
+                                  ...values,
+                                  [CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED]:
+                                    values[
+                                      CONSTANTS.FIELD_KEYS.QUALIFIER_LOCKED
+                                    ].map((val, i) =>
+                                      i === idx ? newLocked : val
+                                    ),
+                                  [CONSTANTS.FIELD_KEYS.QUALIFIER]: values[
+                                    CONSTANTS.FIELD_KEYS.QUALIFIER
+                                  ].map((q, i) =>
+                                    i === idx ? (newLocked ? q : 0) : q
+                                  ),
+                                };
+                                CumulativePercent.recalc(
+                                  updatedValues,
+                                  setFieldValue
+                                );
+                                updateDistribution(
+                                  updatedValues,
+                                  Number(values.appliedGlobalChunk)
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                      </Field>
+                    </div>
+                  </td>
+
+                  <td className="td">
+                    <Field
+                      name={
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                        CONSTANTS.USER_ACTIONS.EXCLUDE
+                          ? `exclude[${idx}]`
+                          : `toAssign[${idx}]`
+                      }
+                      isExcluded={
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                        CONSTANTS.USER_ACTIONS.EXCLUDE
+                      }
+                      component={ControlledToAssignInput}
+                      index={idx}
+                      onValidatedChange={handleFieldChange}
+                      readOnly={true}
+                    />
+                  </td>
+                  <td className="td">{pendingTotal}</td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
     </>
@@ -988,6 +1009,7 @@ const NPerUserForm = ({
   baseAssignable,
   users,
   handleFieldChange,
+  isLoaded,
 }) => {
   const { values, setFieldValue } = formikProps;
   const totals = calcTotals(values);
@@ -1047,113 +1069,115 @@ const NPerUserForm = ({
           </tr>
         </thead>
         <tbody>
-          {users.map((user, idx) => {
-            const currentVal = Number(
-              values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
-            );
-            const pendingTotal =
-              values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-              CONSTANTS.USER_ACTIONS.ADD
-                ? user.tasks + currentVal
-                : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                  CONSTANTS.USER_ACTIONS.SUBTRACT
-                ? Math.max(0, user.tasks - currentVal)
-                : user.tasks;
-            return (
-              <tr key={user.id}>
-                <td className="td">{user.name}</td>
-                <td className="td">{user.tasks}</td>
-                <td className="td">
-                  <Field
-                    as="select"
-                    name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx]
-                    }]`}
-                    value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
-                    onChange={(e) => {
-                      const newValue = e.target.value;
-                      setFieldValue(
-                        `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
-                        newValue
-                      );
+          {(!isLoaded && (
+            <tr>
+              <td colSpan={67} className="td">
+                Loading...
+              </td>
+            </tr>
+          )) ||
+            users.map((user, idx) => {
+              const currentVal = Number(
+                values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] || 0
+              );
+              const pendingTotal =
+                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.ADD
+                  ? user.tasks + currentVal
+                  : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                    CONSTANTS.USER_ACTIONS.SUBTRACT
+                  ? Math.max(0, user.tasks - currentVal)
+                  : user.tasks;
+              return (
+                <tr key={user.id}>
+                  <td className="td">{user.name}</td>
+                  <td className="td">{user.tasks}</td>
+                  <td className="td">
+                    <Field
+                      as="select"
+                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                      }]`}
+                      value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setFieldValue(
+                          `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
+                          newValue
+                        );
 
-                      // Lookup table for handling different user actions
-                      const actionHandlers = {
-                        [CONSTANTS.USER_ACTIONS.EXCLUDE]: () => {
+                        // Prepare updated values with new action
+                        const updatedValues = {
+                          ...values,
+                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
+                            CONSTANTS.FIELD_KEYS.ACTION
+                          ].map((act, i) => (i === idx ? newValue : act)),
+                        };
+
+                        // Handle switching from Exclude → Add
+                        if (newValue === CONSTANTS.USER_ACTIONS.ADD) {
+                          setFieldValue(
+                            `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
+                            values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] ||
+                              appliedPerUserCap
+                          );
+
+                          // Apply global allocation logic after updating action state
+                          const updatedToAssign = applyGlobalAddLogic(
+                            updatedValues,
+                            baseAssignable,
+                            appliedPerUserCap
+                          );
+                          setFieldValue(
+                            CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                            updatedToAssign
+                          );
+                        }
+
+                        // If switching to Exclude, zero out `toAssign`
+                        if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
                           setFieldValue(
                             `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
                             0
                           );
-                          recalcNPerUser(
-                            values,
-                            setFieldValue,
-                            baseAssignable,
-                            appliedPerUserCap
-                          );
-                        },
-                        [CONSTANTS.USER_ACTIONS.ADD]: () => {
-                          if (appliedPerUserCap === 0) {
-                            const newArr = [
-                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
-                            ];
-                            newArr[idx] = 0;
-                            setFieldValue(
-                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                              newArr
-                            );
-                          } else {
-                            const updatedToAssign = applyGlobalAddLogic(
-                              values,
-                              baseAssignable,
-                              appliedPerUserCap
-                            );
-                            setFieldValue(
-                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                              updatedToAssign
-                            );
-                          }
-                        },
-                      };
-
-                      // Execute the corresponding function for the selected action
-                      actionHandlers[newValue]?.();
-                    }}
-                    disabled={disableSelect(
-                      values,
-                      idx,
-                      totals,
-                      baseAssignable,
-                      user.tasks
-                    )}
-                  >
-                    <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
-                    <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
-                      Exclude
-                    </option>
-                  </Field>
-                </td>
-                <td className="td">
-                  <Field
-                    name={
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                      CONSTANTS.USER_ACTIONS.EXCLUDE
-                        ? `exclude[${idx}]`
-                        : `toAssign[${idx}]`
-                    }
-                    isExcluded={
-                      values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
-                      CONSTANTS.USER_ACTIONS.EXCLUDE
-                    }
-                    component={ControlledToAssignInput}
-                    index={idx}
-                    onValidatedChange={handleFieldChange}
-                    readOnly={true}
-                  />
-                </td>
-                <td className="td">{pendingTotal}</td>
-              </tr>
-            );
-          })}
+                        }
+                      }}
+                      disabled={disableSelect(
+                        values,
+                        idx,
+                        totals,
+                        baseAssignable,
+                        user.tasks
+                      )}
+                    >
+                      <option value={CONSTANTS.USER_ACTIONS.ADD}>Add</option>
+                      <option value={CONSTANTS.USER_ACTIONS.EXCLUDE}>
+                        Exclude
+                      </option>
+                    </Field>
+                  </td>
+                  <td className="td">
+                    <Field
+                      name={
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                        CONSTANTS.USER_ACTIONS.EXCLUDE
+                          ? `exclude[${idx}]`
+                          : `toAssign[${idx}]`
+                      }
+                      isExcluded={
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                        CONSTANTS.USER_ACTIONS.EXCLUDE
+                      }
+                      component={ControlledToAssignInput}
+                      index={idx}
+                      onValidatedChange={handleFieldChange}
+                      readOnly={true}
+                    />
+                  </td>
+                  <td className="td">{pendingTotal}</td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
     </>
@@ -1372,6 +1396,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     baseAssignable={baseAssignable}
                     users={users}
                     handleFieldChange={handleFieldChange}
+                    isLoaded={isLoaded}
                   />
                 );
               case "distributedEven":
@@ -1381,6 +1406,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     baseAssignable={baseAssignable}
                     users={users}
                     handleFieldChange={handleFieldChange}
+                    isLoaded={isLoaded}
                   />
                 );
               case "nPer":
@@ -1390,6 +1416,7 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
                     baseAssignable={baseAssignable}
                     users={users}
                     handleFieldChange={handleFieldChange}
+                    isLoaded={isLoaded}
                   />
                 );
               default:
