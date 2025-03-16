@@ -250,13 +250,13 @@ tr:has(select[name*="action"]) {
 /* Dark Mode Action Gradients */
 @media (prefers-color-scheme: dark) {
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgb(255 177 0 / 16%);
-    --myColor2: rgb(157 111 41 / 16%);
+    --myColor1: rgb(157 129 64 / 9%);
+    --myColor2: rgb(65 53 34 / 26%);
     --myPosition: 191px;
   }
   tr:has(select[name*="action"][name*="exclude"]) {
-    --myColor1: rgba(130, 110, 60, 0.25);
-    --myColor2: rgba(100, 80, 50, 0.25);
+    --myColor1: rgb(157 129 64 / 9%);
+    --myColor2: rgb(65 53 34 / 26%);
     --myPosition: 191px;
   }
 }
@@ -264,8 +264,8 @@ tr:has(select[name*="action"]) {
 /* Light Mode Action Gradients */
 @media (prefers-color-scheme: light) {
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgb(255 177 0 / 16%);
-    --myColor2: rgb(157 111, 41 / 16%);
+    --myColor1: rgba(240, 220, 160, 0.35);
+    --myColor2: rgba(210, 180, 120, 0.35);
     --myPosition: 191px;
   }
   tr:has(select[name*="action"][name*="exclude"]) {
