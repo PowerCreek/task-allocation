@@ -209,6 +209,7 @@ input[name*="exclude"][readonly] {
 tr:has(select[name*="action"]) > td {
   background-color: unset;
 }
+
 @property --myColor1 {
   syntax: "<color>";
   initial-value: transparent;
@@ -243,36 +244,36 @@ tr:has(select[name*="action"]) {
   background-position: var(--myPosition) 0px;
 }
 
-/* Dark mode styles */
+/* 🌙 Dark mode styles - SOFT GOLDEN TONES */
 @media (prefers-color-scheme: dark) {
-  /* Subtract: Dark Red Gradient */
+  /* Subtract: Soft golden mustard gradient */
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgba(120, 70, 70, 0.3); /* Very soft faded red */
-    --myColor2: rgba(90, 50, 50, 0.3); /* Almost like a reddish mist */
+    --myColor1: rgba(180, 140, 50, 0.3); /* Muted golden yellow */
+    --myColor2: rgba(140, 100, 40, 0.3); /* Slightly desaturated */
     --myPosition: -190px;
   }
 
-  /* Exclude: Dark Gray Gradient */
+  /* Exclude: Soft beige-yellow gradient */
   tr:has(select[name*="action"][name*="exclude"]) {
-    --myColor1: #3a3a3a75;
-    --myColor2: #29292975;
+    --myColor1: rgba(130, 110, 60, 0.25); /* Soft brownish-yellow */
+    --myColor2: rgba(100, 80, 50, 0.25); /* Very muted */
     --myPosition: -190px;
   }
 }
 
-/* Light mode styles */
+/* ☀️ Light mode styles - BRIGHTER YELLOW */
 @media (prefers-color-scheme: light) {
-  /* Subtract: Light Red Gradient */
+  /* Subtract: Light golden yellow */
   tr:has(select[name*="action"][name*="subtract"]) {
-    --myColor1: rgba(220, 150, 150, 0.6);
-    --myColor2: rgba(180, 100, 100, 0.6);
+    --myColor1: rgba(255, 220, 120, 0.4); /* Soft pastel yellow */
+    --myColor2: rgba(230, 190, 90, 0.4); /* Slightly deeper */
     --myPosition: -190px;
   }
 
-  /* Exclude: Light Gray Gradient */
+  /* Exclude: Muted sandy yellow */
   tr:has(select[name*="action"][name*="exclude"]) {
-    --myColor1: #d7d7d775;
-    --myColor2: #b1b1b175;
+    --myColor1: rgba(240, 220, 160, 0.35); /* Warm beige-yellow */
+    --myColor2: rgba(210, 180, 120, 0.35); /* Softer, warm neutral */
     --myPosition: -190px;
   }
 }

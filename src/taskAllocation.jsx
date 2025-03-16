@@ -339,12 +339,12 @@ const DistributedEvenForm = ({
     const origQuals = vals[QUALIFIER];
     const origLocks = vals[QUALIFIER_LOCKED];
 
-    // 1. Compute forced percentages: if excluded, treat as 0.
+    // 1. Forced qualifiers: if a field is excluded, its percentage becomes 0.
     const forcedQuals = origQuals.map((q, i) =>
       actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
     );
 
-    // 2. Identify explicit fields: locked and percent > 0.
+    // 2. Identify explicit fields: those that are locked and have percent > 0.
     const explicitFields = origQuals
       .map((q, i) => ({ index: i, percent: q }))
       .filter(
@@ -355,14 +355,14 @@ const DistributedEvenForm = ({
       )
       .sort((a, b) => b.percent - a.percent);
 
-    // Identify implicit fields: those not locked.
+    // Identify implicit fields: those that are not locked.
     const implicitIndices = origQuals
       .map((q, i) => i)
       .filter(
         (i) => actions[i] !== CONSTANTS.USER_ACTIONS.EXCLUDE && !origLocks[i]
       );
 
-    // Identify excluded explicit fields: locked with percent = 0.
+    // Identify excluded explicit fields: locked with percent === 0.
     const excludedIndices = origQuals
       .map((q, i) => ({ index: i, percent: q }))
       .filter(
@@ -373,59 +373,126 @@ const DistributedEvenForm = ({
       )
       .map(({ index }) => index);
 
-    // 3. Compute each explicit field’s ideal allocation.
+    // 3. Compute total explicit percentage.
+    const totalExplicitPercent = explicitFields.reduce(
+      (sum, f) => sum + forcedQuals[f.index],
+      0
+    );
+
+    // --- Branch B: When explicit totals are 100% or more ---
+    if (totalExplicitPercent >= 100) {
+      // For each explicit field, compute ideal allocation from full pool:
+      // ideal = (forcedQuals[i]/100)*pool, initial = floor(ideal) bumped to at least 1 if ideal > 0.
+      const explicitDistribution = explicitFields.reduce((acc, f) => {
+        const ideal = (forcedQuals[f.index] / 100) * pool;
+        const initial = ideal > 0 ? Math.max(1, Math.floor(ideal)) : 0;
+        acc[f.index] = initial;
+        return acc;
+      }, {});
+      // Build final distribution: explicit fields get computed values; implicit and excluded fields get 0.
+      const finalDist = new Array(origQuals.length).fill(0);
+      explicitFields.forEach((f) => {
+        finalDist[f.index] = explicitDistribution[f.index];
+      });
+      implicitIndices.forEach((i) => {
+        finalDist[i] = 0;
+      });
+      excludedIndices.forEach((i) => {
+        finalDist[i] = 0;
+      });
+      return { ...vals, [TO_ASSIGN]: finalDist };
+    }
+
+    // --- Branch A: When total explicit percentage is less than 100% ---
+    // Reserve one task for each implicit field.
+    const reservedForImplicit = implicitIndices.length;
+    const availableExplicitPool = pool - reservedForImplicit;
+
+    // For each explicit field, compute its ideal allocation against the available explicit pool.
+    // ideal = (forcedQuals[i] / 100) * availableExplicitPool.
+    // initial = if ideal > 0 then max(1, floor(ideal)) else 0.
+    // cap = Math.ceil(ideal).
     const explicitAllocations = explicitFields.map((f) => {
-      const ideal = pool > 0 ? (forcedQuals[f.index] / 100) * pool : 0;
+      const ideal = (forcedQuals[f.index] / 100) * availableExplicitPool;
       const initial = ideal > 0 ? Math.max(1, Math.floor(ideal)) : 0;
       const cap = Math.ceil(ideal);
       return { index: f.index, ideal, initial, cap, allocation: initial };
     });
 
-    // 4. Sum explicit allocations and compute leftover.
+    // Sum explicit allocations and compute leftover from the available explicit pool.
     const explicitTotal = explicitAllocations.reduce(
-      (sum, f) => sum + f.allocation,
+      (sum, a) => sum + a.allocation,
       0
     );
-    let leftover = pool - explicitTotal;
+    let leftover = availableExplicitPool - explicitTotal;
 
-    // 5. Adjust explicit allocations if needed.
+    // If leftover is less than the number of implicit fields,
+    // adjust explicit allocations by removing tasks from those with allocation > 1 in round-robin descending order.
+    const adjustForImplicit = (allocs, currentLeftover, needed) =>
+      currentLeftover >= needed
+        ? allocs
+        : (() => {
+            const candidates = allocs.filter((a) => a.allocation > 1);
+            if (candidates.length === 0) return allocs;
+            const sorted = candidates.sort(
+              (a, b) => b.allocation - a.allocation
+            );
+            const candidate = sorted[0];
+            const updated = allocs.map((a) =>
+              a.index === candidate.index
+                ? { ...a, allocation: a.allocation - 1 }
+                : a
+            );
+            return adjustForImplicit(updated, currentLeftover + 1, needed);
+          })();
     if (implicitIndices.length > 0 && leftover < implicitIndices.length) {
       const needed = implicitIndices.length - leftover;
-      const adjustedExplicit = explicitAllocations
-        .sort((a, b) => b.allocation - a.allocation)
-        .map((a, i) =>
-          i < needed && a.allocation > 1
-            ? { ...a, allocation: a.allocation - 1 }
-            : a
-        );
-
-      explicitAllocations.length = 0;
-      adjustedExplicit.forEach((a) => explicitAllocations.push(a));
-      leftover = pool - adjustedExplicit.reduce((s, a) => s + a.allocation, 0);
+      const adjustedExplicit = adjustForImplicit(
+        explicitAllocations,
+        leftover,
+        implicitIndices.length
+      );
+      const newExplicitTotal = adjustedExplicit.reduce(
+        (s, a) => s + a.allocation,
+        0
+      );
+      leftover = pool - reservedForImplicit - newExplicitTotal;
+      // Overwrite explicitAllocations with adjusted values.
+      adjustedExplicit.forEach((a, idx) => {
+        explicitAllocations[idx] = a;
+      });
     }
 
-    // 6. Cap explicit fields: final allocation = min(allocation, cap).
-    let finalDist = new Array(origQuals.length).fill(0);
-    explicitAllocations.forEach((f) => {
-      finalDist[f.index] = Math.min(f.allocation, f.cap);
-    });
+    // Cap explicit fields: final allocation = min(allocation, cap).
+    const explicitDistribution = explicitAllocations.reduce((acc, a) => {
+      acc[a.index] = Math.min(a.allocation, a.cap);
+      return acc;
+    }, {});
 
-    // Set excluded explicit fields to 0.
+    // Build the final distribution array.
+    let finalDist = new Array(origQuals.length).fill(0);
+    explicitFields.forEach((f) => {
+      finalDist[f.index] = explicitDistribution[f.index];
+    });
     excludedIndices.forEach((i) => {
       finalDist[i] = 0;
     });
 
-    // 7. Distribute leftover evenly among implicit fields.
-    if (leftover > 0 && implicitIndices.length > 0) {
-      const avg = Math.floor(leftover / implicitIndices.length);
-      const rem = leftover % implicitIndices.length;
+    // Distribute leftover evenly among implicit fields by averaging.
+    if (implicitIndices.length > 0 && leftover > 0) {
+      const count = implicitIndices.length;
+      const avg = Math.floor(leftover / count);
+      const rem = leftover % count;
+      const implicitDistribution = implicitIndices.map(
+        (i, idx) => avg + (idx < rem ? 1 : 0)
+      );
       implicitIndices.forEach((i, idx) => {
-        finalDist[i] = avg + (idx < rem ? 1 : 0);
+        finalDist[i] = implicitDistribution[idx];
       });
+      leftover = 0;
+    } else {
+      implicitIndices.forEach((i) => (finalDist[i] = 0));
     }
-
-    // Ensure no NaN values in the final distribution
-    finalDist = finalDist.map((v) => (isNaN(v) ? 0 : v));
 
     return { ...vals, [TO_ASSIGN]: finalDist };
   };
