@@ -219,7 +219,6 @@ const NormalAllocationForm = ({
         </tr>
       </thead>
       <tbody>
-        {" "}
         {(!isLoaded && (
           <tr>
             <td colSpan={67} className="td">
@@ -416,7 +415,8 @@ const DistributedEvenForm = ({
 
     // --- Branch A: When total explicit percentage is less than 100% ---
     // Reserve one task for each implicit field.
-    const reservedForImplicit = implicitIndices.length;
+    const reservedForImplicit =
+      pool > implicitIndices.length ? 0 : implicitIndices.length;
     const availableExplicitPool = pool - reservedForImplicit;
 
     // For each explicit field, compute its ideal allocation against the available explicit pool.
@@ -515,10 +515,12 @@ const DistributedEvenForm = ({
     const origQuals = vals[QUALIFIER];
     const origLocks = vals[QUALIFIER_LOCKED];
 
+    // For fields that are not excluded, use their locked value; otherwise, force 0.
     const forcedQuals = origQuals.map((q, i) =>
       actions[i] === CONSTANTS.USER_ACTIONS.EXCLUDE ? 0 : q
     );
 
+    // Identify explicit (locked) fields that have a positive percentage.
     const explicitFields = origQuals
       .map((q, i) => ({ index: i, percent: q }))
       .filter(
@@ -528,52 +530,44 @@ const DistributedEvenForm = ({
           percent > 0
       );
 
-    const sumExplicit = explicitFields.reduce(
-      (sum, f) => sum + forcedQuals[f.index],
-      0
-    );
-    const availableExplicitPool = pool;
-
-    if (sumExplicit === 0) {
-      // If no explicit percentages are defined, assign zero to all
+    const availableExplicitPool = pool; // use the full pool
+    if (explicitFields.length === 0) {
       return { ...vals, [TO_ASSIGN]: new Array(origQuals.length).fill(0) };
     }
 
-    // Step 1: Compute ideal allocations, floor values, and remainder
-    let explicitAllocations = explicitFields.map((f) => {
-      const ideal =
-        (forcedQuals[f.index] / sumExplicit) * availableExplicitPool;
-      const initial = Math.max(1, Math.floor(ideal)); // Ensure at least 1 if ideal > 0
+    // Compute the ideal allocation for each explicit field strictly by percentage.
+    // No forced minimum is applied here.
+    const explicitAllocations = explicitFields.map((f) => {
+      const ideal = (forcedQuals[f.index] / 100) * availableExplicitPool;
+      const initial = Math.floor(ideal);
       const cap = Math.ceil(ideal);
       return {
         index: f.index,
         ideal,
         initial,
         cap,
-        remainder: ideal - initial, // Track how much was lost due to flooring
+        remainder: ideal - initial,
       };
     });
 
-    // Step 2: Compute total allocated and distribute remaining tasks
+    // Sum the initial allocations.
     let totalAllocated = explicitAllocations.reduce(
-      (sum, f) => sum + f.initial,
+      (sum, a) => sum + a.initial,
       0
     );
     let leftover = availableExplicitPool - totalAllocated;
 
-    // Step 3: Assign leftover tasks to fields with highest remainder
+    // Distribute any leftover tasks based on the highest remainder
     explicitAllocations.sort((a, b) => b.remainder - a.remainder);
     for (let i = 0; i < leftover; i++) {
       explicitAllocations[i % explicitAllocations.length].initial++;
     }
 
-    // Step 4: Construct final distribution
+    // Build the final distribution array.
     let finalDist = new Array(origQuals.length).fill(0);
     explicitAllocations.forEach((f) => {
       finalDist[f.index] = f.initial;
     });
-
-    // Ensure no NaN values
     finalDist = finalDist.map((v) => (isNaN(v) ? 0 : v));
 
     return { ...vals, [TO_ASSIGN]: finalDist };
@@ -698,8 +692,11 @@ const DistributedEvenForm = ({
           type="button"
           onClick={updateConsolidatedValues}
           className="button"
+          disabled={
+            Number(values.globalChunk) === Number(values.appliedGlobalChunk)
+          }
         >
-          Apply Global Add
+          Apply {values.globalChunk} &rArr; {values.appliedGlobalChunk}
         </button>
       </div>
       <table className="table">
@@ -1024,11 +1021,16 @@ const NPerUserForm = ({
 
   // When "Apply Global Add" is clicked, update the proxy and allocations.
   const updateAppliedPerUserChunk = () => {
-    const newCap = Number(values.perUserChunk) || 0;
-    setFieldValue("appliedPerUserChunk", newCap);
+    // Commit the current perUserChunk
+    setFieldValue("appliedPerUserChunk", values.perUserChunk);
+    // Update the entire toAssign array using the committed value
     setFieldValue(
       CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-      applyGlobalAddLogic(values, baseAssignable, newCap)
+      applyGlobalAddLogic(
+        { ...values, appliedPerUserChunk: values.perUserChunk },
+        baseAssignable,
+        values.perUserChunk
+      )
     );
   };
 
@@ -1042,11 +1044,12 @@ const NPerUserForm = ({
             name="perUserChunk"
             // Clamp the perUserChunk between 0 and baseAssignable
             onChange={(e) => {
-              let value = Number(e.target.value);
-              if (isNaN(value)) value = 0;
-              if (value < 0) value = 0;
-              if (value > baseAssignable) value = baseAssignable;
-              setFieldValue("perUserChunk", value);
+              let newChunk = Number(e.target.value);
+              if (isNaN(newChunk) || newChunk < 0) newChunk = 0;
+              if (newChunk > baseAssignable) newChunk = baseAssignable;
+
+              // Store new per-user chunk WITHOUT applying changes
+              setFieldValue("perUserChunk", newChunk);
             }}
           />
         </label>
@@ -1054,8 +1057,11 @@ const NPerUserForm = ({
           type="button"
           onClick={updateAppliedPerUserChunk}
           className="button"
+          disabled={
+            Number(values.perUserChunk) === Number(values.appliedPerUserChunk)
+          }
         >
-          Apply Global Add
+          Apply {values.perUserChunk} &rArr; {values.appliedPerUserChunk}
         </button>
       </div>
       <table className="table">
@@ -1106,7 +1112,7 @@ const NPerUserForm = ({
                           newValue
                         );
 
-                        // Prepare updated values with new action
+                        // Build an updated snapshot for actions without modifying perUserChunk:
                         const updatedValues = {
                           ...values,
                           [CONSTANTS.FIELD_KEYS.ACTION]: values[
@@ -1114,33 +1120,55 @@ const NPerUserForm = ({
                           ].map((act, i) => (i === idx ? newValue : act)),
                         };
 
-                        // Handle switching from Exclude → Add
-                        if (newValue === CONSTANTS.USER_ACTIONS.ADD) {
-                          setFieldValue(
-                            `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                            values[CONSTANTS.FIELD_KEYS.TO_ASSIGN][idx] ||
-                              appliedPerUserCap
-                          );
+                        // Force the snapshot to use the committed appliedPerUserChunk instead of the live perUserChunk.
+                        const lockedValues = {
+                          ...updatedValues,
+                          perUserChunk: values.appliedPerUserChunk,
+                          appliedPerUserChunk: values.appliedPerUserChunk,
+                        };
 
-                          // Apply global allocation logic after updating action state
-                          const updatedToAssign = applyGlobalAddLogic(
-                            updatedValues,
-                            baseAssignable,
-                            appliedPerUserCap
-                          );
-                          setFieldValue(
-                            CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                            updatedToAssign
-                          );
-                        }
+                        const actionHandlers = {
+                          [CONSTANTS.USER_ACTIONS.EXCLUDE]: () => {
+                            // For Exclude, set the current row to 0 and recalc globally
+                            const newArr = [
+                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
+                            ];
+                            newArr[idx] = 0;
+                            setFieldValue(
+                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                              newArr
+                            );
+                            recalcNPerUser(
+                              { ...lockedValues },
+                              setFieldValue,
+                              baseAssignable,
+                              values.appliedPerUserChunk
+                            );
+                          },
 
-                        // If switching to Exclude, zero out `toAssign`
-                        if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
-                          setFieldValue(
-                            `${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`,
-                            0
-                          );
-                        }
+                          [CONSTANTS.USER_ACTIONS.ADD]: () => {
+                            const newArr = [
+                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
+                            ];
+                            if (values.appliedPerUserChunk === 0) {
+                              newArr[idx] = 0;
+                            } else {
+                              // Use lockedValues so that any reference to perUserChunk is now the committed value.
+                              const updatedToAssign = applyGlobalAddLogic(
+                                lockedValues,
+                                baseAssignable,
+                                values.appliedPerUserChunk
+                              );
+                              newArr[idx] = updatedToAssign[idx];
+                            }
+                            setFieldValue(
+                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
+                              newArr
+                            );
+                          },
+                        };
+
+                        actionHandlers[newValue]?.();
                       }}
                       disabled={disableSelect(
                         values,
@@ -1301,7 +1329,23 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
       onSubmit={handleSubmit}
     >
       {({ values, setFieldValue, setValues }) => (
-        <Form className="container tasks">
+        <Form
+          className="container tasks"
+          onKeyDown={(e) => {
+            // If Enter is pressed...
+            if (e.key === "Enter") {
+              // Check if the target is a submit button
+              // (you can check tagName and/or type attribute)
+              const targetIsSubmit =
+                e.target.tagName === "BUTTON" &&
+                e.target.getAttribute("type") === "submit";
+
+              if (!targetIsSubmit) {
+                e.preventDefault();
+              }
+            }
+          }}
+        >
           <div className="section">
             <h3>Allocation Mode</h3>
             <div className="radio-group">
@@ -1425,12 +1469,12 @@ const TaskAllocationForm = ({ initialStore, onUpdateInitialStore }) => {
           })()}
           <div className="section info-row">
             <div>
-              <strong> Effective Pool:</strong>{" "}
+              <strong> Effective Pool:</strong>
               {calcEffectivePool(baseAssignable, values)}
             </div>
             <div>
-              <strong>Total Allocated:</strong> {calcTotals(values).totalAdded}{" "}
-              / {baseAssignable}
+              <strong>Total Allocated:</strong> {calcTotals(values).totalAdded}/{" "}
+              {baseAssignable}
             </div>
           </div>
           <button

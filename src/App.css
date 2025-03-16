@@ -1,9 +1,11 @@
+/* General Layout */
 #root {
   max-width: 1280px;
   margin: 0 auto;
   text-align: center;
 }
 
+/* Logo Styles */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -17,6 +19,7 @@
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
+/* Logo Animation */
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);
@@ -25,24 +28,30 @@
     transform: rotate(360deg);
   }
 }
-
 @media (prefers-reduced-motion: no-preference) {
   a:nth-of-type(2) .logo {
     animation: logo-spin infinite 20s linear;
   }
 }
 
+/* Card and Documentation */
 .card {
   padding: 2em;
 }
-
 .read-the-docs {
   color: #888;
 }
 
+/* Tasks Table */
 .tasks table {
   min-width: 580px;
   white-space-collapse: break-spaces;
+}
+
+/* Custom Checkbox */
+.custom-checkbox {
+  appearance: checkbox;
+  -webkit-appearance: checkbox;
 }
 .custom-checkbox:checked {
   appearance: none;
@@ -54,13 +63,13 @@
   margin: unset;
   border-width: 0px;
   border-color: light-dark(rgb(110, 110, 110), rgb(122, 122, 122));
+  border: unset !important;
+  height: 1.19rem !important;
 }
-
 .custom-checkbox:focus {
   outline: none;
   border-color: light-dark(rgb(118, 118, 118), rgb(133, 133, 133)) !important;
 }
-
 .custom-checkbox:checked:before {
   content: "";
   border-radius: 0.185em;
@@ -69,32 +78,19 @@
   /* background-color: light-dark(#fff, #3b3b3b); */
   outline: none;
 }
-
 .custom-checkbox:checked:hover {
   border-color: light-dark(rgb(80, 80, 80), rgb(153, 153, 153));
 }
-
-.custom-checkbox:checked {
-  border: unset !important;
-  height: 1.19rem !important;
-}
-
-.custom-checkbox {
-  appearance: checkbox;
-  -webkit-appearance: checkbox;
-}
-
 .custom-checkbox:checked::before {
   background-color: light-dark(#007bff, #99c8ff);
   border-color: light-dark(rgb(118, 118, 118), #99c8ff);
 }
 
+/* Checkbox SVG Icons */
 :root {
   --checkbox-svg-dark: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%233d3e3f" stroke="%233d3e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 10V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
-
   --checkbox-svg-light: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="%23ffffff" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="11" width="11" height="10" rx="3"/><path d="M9.5 10V7a3 3 0 0 1 6 0v4" fill="none"/></svg>');
 }
-
 .custom-checkbox:checked::after {
   content: "";
   position: absolute;
@@ -104,26 +100,26 @@
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  margin: 0px 0px 0px 0px;
+  margin: 0px;
   background-image: var(--checkbox-svg-dark);
   height: 100%;
 }
-
 @media (prefers-color-scheme: light) {
   .custom-checkbox:checked::after {
     background-image: var(--checkbox-svg-light);
   }
 }
 
+/* Additional Checkbox States */
 .custom-checkbox:hover::before {
   border-color: light-dark(transparent, #b3b3b3);
 }
-
 .custom-checkbox:focus-visible {
   outline: 2px solid light-dark(#b3b3b3, #007bff);
   outline-offset: 2px;
 }
 
+/* Qualifier & Checkbox Containers */
 div:has(> .qualifierInputContainer) {
   display: flex;
   align-items: center;
@@ -163,18 +159,26 @@ input[name*="qualifierLocked"] {
   width: -webkit-fill-available;
   height: 100% !important;
 }
-div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]) *,
+div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]),
 div:has(> [name^="qualifier"][disabled]) {
   cursor: not-allowed;
 }
 input[name^="qualifier["] {
-  direction: rtl;
   padding-right: 20px !important;
   width: 50px;
+  text-align: right;
+}
+input[name^="qualifier"]::placeholder,
+input[name^="qualifier"]::-webkit-input-placeholder {
+  flex-direction: row-reverse;
+  position: relative;
+  left: 0px;
+  width: 100%;
+  top: -3px;
 }
 input[name^="qualifier"]::-webkit-inner-spin-button,
-input[name^="qualifier"]::-webkit-outer-spin-button {
-  right: auto;
+input[name^="qualifier"]::-webkit-textfield-decoration-container {
+  flex-direction: row-reverse;
 }
 .qualifierInputContainer::after {
   content: "%";
@@ -185,6 +189,8 @@ input[name^="qualifier"]::-webkit-outer-spin-button {
   right: 20px;
   width: 0px;
 }
+
+/* Input and Button Defaults */
 input:not([type="radio"]) {
   cursor: auto;
 }
@@ -206,6 +212,7 @@ input[name*="exclude"][readonly] {
   cursor: not-allowed;
 }
 
+/* Table Header and Gradient Background */
 tr:has(select[name*="action"]) > td {
   background-color: unset;
 }
@@ -215,20 +222,16 @@ tr:has(select[name*="action"]) > td {
   initial-value: transparent;
   inherits: false;
 }
-
 @property --myColor2 {
   syntax: "<color>";
   initial-value: transparent;
   inherits: false;
 }
-
 @property --myPosition {
   syntax: "<length>";
   initial-value: 191px;
   inherits: false;
 }
-
-/* Apply base gradient setup to all `action` rows */
 tr:has(select[name*="action"]) {
   --myPosition: 141px;
   transition: --myPosition 0.3s ease-in-out, --myColor1 0.2s ease-in,
@@ -244,40 +247,35 @@ tr:has(select[name*="action"]) {
   background-position: 0px var(--myPosition);
 }
 
-/* 🌙 Dark mode styles - SOFT GOLDEN TONES */
+/* Dark Mode Action Gradients */
 @media (prefers-color-scheme: dark) {
-  /* Subtract: Soft golden mustard gradient */
   tr:has(select[name*="action"][name*="subtract"]) {
     --myColor1: rgb(255 177 0 / 16%);
     --myColor2: rgb(157 111 41 / 16%);
     --myPosition: 191px;
   }
-
-  /* Exclude: Soft beige-yellow gradient */
   tr:has(select[name*="action"][name*="exclude"]) {
-    --myColor1: rgba(130, 110, 60, 0.25); /* Soft brownish-yellow */
-    --myColor2: rgba(100, 80, 50, 0.25); /* Very muted */
+    --myColor1: rgba(130, 110, 60, 0.25);
+    --myColor2: rgba(100, 80, 50, 0.25);
     --myPosition: 191px;
   }
 }
 
-/* ☀️ Light mode styles - BRIGHTER YELLOW */
+/* Light Mode Action Gradients */
 @media (prefers-color-scheme: light) {
-  /* Subtract: Light golden yellow */
   tr:has(select[name*="action"][name*="subtract"]) {
     --myColor1: rgb(255 177 0 / 16%);
-    --myColor2: rgb(157 111 41 / 16%);
+    --myColor2: rgb(157 111, 41 / 16%);
     --myPosition: 191px;
   }
-
-  /* Exclude: Muted sandy yellow */
   tr:has(select[name*="action"][name*="exclude"]) {
-    --myColor1: rgba(240, 220, 160, 0.35); /* Warm beige-yellow */
-    --myColor2: rgba(210, 180, 120, 0.35); /* Softer, warm neutral */
+    --myColor1: rgba(240, 220, 160, 0.35);
+    --myColor2: rgba(210, 180, 120, 0.35);
     --myPosition: 191px;
   }
 }
 
+/* Table Header */
 thead > tr {
   display: contents;
 }
@@ -285,11 +283,14 @@ thead {
   box-shadow: inset 0 0 0 0.2rem white;
   border-bottom: 0.1rem solid rgb(167, 167, 167);
 }
+
+/* Misc Layout */
 .ws-wrap-down {
   white-space: break-spaces;
   width: 0px;
 }
-/* Light Mode Styles */
+
+/* Container and Section */
 .container {
   font-family: Arial, sans-serif;
   background-color: #f5f5f5;
@@ -322,6 +323,8 @@ h3 {
   font-weight: bold;
   color: #34495e;
 }
+
+/* Table and Cell */
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -341,11 +344,11 @@ h3 {
   color: #2c3e50;
   font-weight: bold;
 }
-
 .td button {
   height: 30px;
 }
 
+/* Button Styles */
 .button {
   padding: 7px 12px;
   cursor: pointer;
@@ -357,6 +360,23 @@ h3 {
 .button:hover {
   background-color: #1558b0;
 }
+.button:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+/* Ensure no hover effect on disabled buttons */
+.button:disabled:hover {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
+.button.number {
+  width: 60px;
+}
+
+/* Input & Select */
 select,
 input {
   padding: 6px;
@@ -382,10 +402,7 @@ select:focus {
   box-shadow: 0 0 5px rgba(26, 115, 232, 0.5);
 }
 
-.button.number {
-  width: 60px;
-}
-
+/* Section & Grid Layout */
 .section:nth-of-type(1) {
   justify-self: start;
   grid-row: 1;
@@ -426,6 +443,7 @@ table {
   grid-row: 3;
   grid-column: 1 / span 2;
 }
+
 /* Dark Mode Styles */
 @media (prefers-color-scheme: dark) {
   .container {
@@ -478,7 +496,8 @@ table {
     padding: 5px;
   }
 }
-/* Styling for the radio group */
+
+/* Radio Group */
 .radio-group {
   display: flex;
   flex-direction: column;
