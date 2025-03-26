@@ -159,6 +159,7 @@ input[name*="qualifierLocked"] {
   width: -webkit-fill-available;
   height: 100% !important;
 }
+div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]) *,
 div:has(> .qualifierInputContainer > [name^="qualifier"][disabled]),
 div:has(> [name^="qualifier"][disabled]) {
   cursor: not-allowed;
@@ -174,7 +175,7 @@ input[name^="qualifier"]::-webkit-input-placeholder {
   position: relative;
   left: 0px;
   width: 100%;
-  top: -3px;
+  top: -4px;
 }
 input[name^="qualifier"]::-webkit-inner-spin-button,
 input[name^="qualifier"]::-webkit-textfield-decoration-container {
