@@ -1114,14 +1114,30 @@ const NPerUserForm = ({
                     CONSTANTS.USER_ACTIONS.SUBTRACT
                   ? Math.max(0, user.tasks.length - currentVal)
                   : user.tasks.length;
+
+              // Determine the CSS class based on the action
+              const rowClass =
+                values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                CONSTANTS.USER_ACTIONS.ADD
+                  ? "row-add"
+                  : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                    CONSTANTS.USER_ACTIONS.SUBTRACT
+                  ? "row-subtract"
+                  : values[CONSTANTS.FIELD_KEYS.ACTION][idx] ===
+                    CONSTANTS.USER_ACTIONS.EXCLUDE
+                  ? "row-exclude"
+                  : "";
+
               return (
-                <tr key={user.id}>
+                <tr key={user.id} className={rowClass}>
                   <td className="td">{user.name}</td>
                   <td className="td">{user.tasks.length}</td>
                   <td className="td">
                     <Field
                       as="select"
-                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
+                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
+                        values[CONSTANTS.FIELD_KEYS.ACTION][idx]
+                      }]`}
                       value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
                       onChange={(e) => handleActionChange(idx, e.target.value)}
                       disabled={disableSelect(
