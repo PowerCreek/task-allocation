@@ -1033,6 +1033,30 @@ const NPerUserForm = ({
       )
     );
   };
+
+  const handleActionChange = (idx, newValue) => {
+    setFieldValue(`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`, newValue);
+
+    if (newValue === CONSTANTS.USER_ACTIONS.EXCLUDE) {
+      setFieldValue(`${CONSTANTS.FIELD_KEYS.TO_ASSIGN}[${idx}]`, 0);
+    }
+
+    const updatedValues = {
+      ...values,
+      [CONSTANTS.FIELD_KEYS.ACTION]: values[CONSTANTS.FIELD_KEYS.ACTION].map(
+        (act, i) => (i === idx ? newValue : act)
+      ),
+    };
+
+    // Recalculate all `toAssign` fields when "Add" is selected
+    recalcNPerUser(
+      updatedValues,
+      setFieldValue,
+      baseAssignable,
+      values.appliedPerUserChunk
+    );
+  };
+
   return (
     <>
       <div className="section">
@@ -1097,66 +1121,9 @@ const NPerUserForm = ({
                   <td className="td">
                     <Field
                       as="select"
-                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}][${
-                        values[CONSTANTS.FIELD_KEYS.ACTION][idx]
-                      }]`}
+                      name={`${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`}
                       value={values[CONSTANTS.FIELD_KEYS.ACTION][idx]}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        setFieldValue(
-                          `${CONSTANTS.FIELD_KEYS.ACTION}[${idx}]`,
-                          newValue
-                        );
-                        const updatedValues = {
-                          ...values,
-                          [CONSTANTS.FIELD_KEYS.ACTION]: values[
-                            CONSTANTS.FIELD_KEYS.ACTION
-                          ].map((act, i) => (i === idx ? newValue : act)),
-                        };
-                        const lockedValues = {
-                          ...updatedValues,
-                          perUserChunk: values.appliedPerUserChunk,
-                          appliedPerUserChunk: values.appliedPerUserChunk,
-                        };
-                        const actionHandlers = {
-                          [CONSTANTS.USER_ACTIONS.EXCLUDE]: () => {
-                            const newArr = [
-                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
-                            ];
-                            newArr[idx] = 0;
-                            setFieldValue(
-                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                              newArr
-                            );
-                            recalcNPerUser(
-                              { ...lockedValues },
-                              setFieldValue,
-                              baseAssignable,
-                              values.appliedPerUserChunk
-                            );
-                          },
-                          [CONSTANTS.USER_ACTIONS.ADD]: () => {
-                            const newArr = [
-                              ...values[CONSTANTS.FIELD_KEYS.TO_ASSIGN],
-                            ];
-                            if (values.appliedPerUserChunk === 0) {
-                              newArr[idx] = 0;
-                            } else {
-                              const updatedToAssign = applyGlobalAddLogic(
-                                lockedValues,
-                                baseAssignable,
-                                values.appliedPerUserChunk
-                              );
-                              newArr[idx] = updatedToAssign[idx];
-                            }
-                            setFieldValue(
-                              CONSTANTS.FIELD_KEYS.TO_ASSIGN,
-                              newArr
-                            );
-                          },
-                        };
-                        actionHandlers[newValue]?.();
-                      }}
+                      onChange={(e) => handleActionChange(idx, e.target.value)}
                       disabled={disableSelect(
                         values,
                         idx,
